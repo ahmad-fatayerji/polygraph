@@ -11,8 +11,8 @@ Build a standalone client-side PolyGraph editor and verifier as a Next.js web ap
 
 ## UI Layout (Single Workspace)
 - Top toolbar: Validate, Execute, Reset.
-- Center: Left editor panel (JSON or Visual toggle) and right visualization panel.
-- Bottom: Terminal panel with diagnostics and filters by severity.
+- Center: Left editor panel (JSON or Visual toggle) and right results panel.
+- Bottom: Full-width terminal panel with draggable height and diagnostics filters.
 
 ## Frontend Architecture (Next.js)
 Route: `/polygraph`

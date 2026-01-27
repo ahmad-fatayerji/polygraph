@@ -13,7 +13,7 @@ export default function TokenTraceView({
 
   if (!execution?.artifacts?.tokenTrace) {
     return (
-      <div className="rounded-2xl border border-dashed border-neutral-200 bg-white/70 p-4 text-sm text-neutral-500">
+      <div className="rounded-2xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
         Token trace appears after execution succeeds.
       </div>
     );
@@ -28,23 +28,23 @@ export default function TokenTraceView({
         return (
           <div
             key={trace.channelId}
-            className="rounded-xl border border-neutral-200 bg-white/70 px-4 py-3"
+            className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] px-4 py-3"
           >
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
                 {trace.channelId}
               </p>
               {channel && (
-                <span className="text-[11px] text-neutral-400">
+                <span className="text-[11px] text-[color:var(--muted)]">
                   {channel.src} {" -> "} {channel.dst}
                 </span>
               )}
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-700 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[color:var(--muted-strong)] sm:grid-cols-3">
               {trace.values.map((value) => (
                 <div
                   key={`${trace.channelId}-${value.tick}`}
-                  className="rounded-lg bg-neutral-100 px-2 py-1"
+                  className="rounded-lg bg-[color:var(--panel)] px-2 py-1"
                 >
                   t{value.tick}: {value.tokens}
                 </div>

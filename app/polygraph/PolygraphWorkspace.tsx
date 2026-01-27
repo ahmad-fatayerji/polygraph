@@ -14,9 +14,14 @@ export default function PolygraphWorkspace() {
   const setExecution = usePolygraphStore((state) => state.setExecution);
   const setModel = usePolygraphStore((state) => state.setModel);
   const reset = usePolygraphStore((state) => state.reset);
+  const theme = usePolygraphStore((state) => state.theme);
+  const setTheme = usePolygraphStore((state) => state.setTheme);
+  const toggleTheme = usePolygraphStore((state) => state.toggleTheme);
 
   const workerRef = useRef<Worker | null>(null);
   const [status, setStatus] = useState<"idle" | "running">("idle");
+  const [terminalHeight, setTerminalHeight] = useState(280);
+  const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   useEffect(() => {
     const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
@@ -46,6 +51,58 @@ export default function PolygraphWorkspace() {
       workerRef.current = null;
     };
   }, [setDiagnostics, setExecution]);
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem("polygraph-theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+      setTheme(storedTheme);
+    } else {
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      setTheme(media.matches ? "dark" : "light");
+    }
+  }, [setTheme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem("polygraph-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const updateHeight = (clientY: number) => {
+      if (!dragStateRef.current) return;
+      const delta = dragStateRef.current.startY - clientY;
+      const minHeight = 200;
+      const maxHeight = Math.max(minHeight, Math.round(window.innerHeight * 0.55));
+      const nextHeight = dragStateRef.current.startHeight + delta;
+      setTerminalHeight(Math.min(maxHeight, Math.max(minHeight, nextHeight)));
+    };
+
+    const handlePointerMove = (event: PointerEvent) => updateHeight(event.clientY);
+    const handleMouseMove = (event: MouseEvent) => updateHeight(event.clientY);
+
+    const stopDrag = () => {
+      if (dragStateRef.current) {
+        dragStateRef.current = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopDrag);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopDrag);
+    };
+  }, []);
 
   const runVerification = useCallback(
     (computeExecution: boolean) => {
@@ -87,10 +144,10 @@ export default function PolygraphWorkspace() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-100/70 px-6 py-8 text-neutral-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col gap-6">
+    <div className="min-h-screen bg-transparent px-4 py-6 text-[color:var(--foreground)]">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1500px] flex-col gap-6">
         <header
-          className="animate-float-in rounded-[28px] border border-neutral-200 bg-white/80 p-6 shadow-sm"
+          className="animate-float-in rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-6 shadow-sm"
           style={{ animationDelay: "40ms" }}
         >
           <Toolbar
@@ -98,29 +155,63 @@ export default function PolygraphWorkspace() {
             onExecute={() => runVerification(true)}
             onReset={reset}
             status={status}
+            theme={theme}
+            onToggleTheme={toggleTheme}
           />
           {status === "running" && (
-            <p className="mt-3 text-xs uppercase tracking-[0.25em] text-neutral-500">
+            <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
               Verifying... running in worker
             </p>
           )}
         </header>
-        <main className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <main className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
+            <div
+              className="animate-float-in rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-6 shadow-sm"
+              style={{ animationDelay: "120ms" }}
+            >
+              <EditorPanel />
+            </div>
+            <div
+              className="animate-float-in rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-6 shadow-sm"
+              style={{ animationDelay: "180ms" }}
+            >
+              <VisualizationPanel />
+            </div>
+          </main>
           <div
-            className="animate-float-in rounded-[28px] border border-neutral-200 bg-white/70 p-6 shadow-sm"
-            style={{ animationDelay: "120ms" }}
-          >
-            <EditorPanel />
-          </div>
+            className="mt-4 h-3 cursor-row-resize touch-none rounded-full bg-[color:var(--panel-border)]"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              if (event.currentTarget.setPointerCapture) {
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }
+              dragStateRef.current = {
+                startY: event.clientY,
+                startHeight: terminalHeight,
+              };
+              document.body.style.cursor = "row-resize";
+              document.body.style.userSelect = "none";
+            }}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              dragStateRef.current = {
+                startY: event.clientY,
+                startHeight: terminalHeight,
+              };
+              document.body.style.cursor = "row-resize";
+              document.body.style.userSelect = "none";
+            }}
+            role="separator"
+            aria-label="Resize terminal"
+            aria-orientation="horizontal"
+          />
           <div
-            className="animate-float-in rounded-[28px] border border-neutral-200 bg-white/70 p-6 shadow-sm"
-            style={{ animationDelay: "180ms" }}
+            className="animate-float-in mt-4"
+            style={{ animationDelay: "220ms", height: terminalHeight }}
           >
-            <VisualizationPanel />
+            <TerminalPanel />
           </div>
-        </main>
-        <div className="animate-float-in" style={{ animationDelay: "220ms" }}>
-          <TerminalPanel />
         </div>
       </div>
     </div>

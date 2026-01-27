@@ -5,9 +5,9 @@ import { usePolygraphStore } from "../store";
 import type { Diagnostic } from "@/lib/polygraph/types";
 
 const severityStyles: Record<Diagnostic["severity"], string> = {
-  error: "bg-red-100 text-red-800",
-  warn: "bg-amber-100 text-amber-800",
-  info: "bg-blue-100 text-blue-800",
+  error: "bg-[color:var(--severity-error-bg)] text-[color:var(--severity-error-text)]",
+  warn: "bg-[color:var(--severity-warn-bg)] text-[color:var(--severity-warn-text)]",
+  info: "bg-[color:var(--severity-info-bg)] text-[color:var(--severity-info-text)]",
 };
 
 export default function TerminalPanel() {
@@ -25,11 +25,11 @@ export default function TerminalPanel() {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
-    <section className="rounded-[28px] border border-neutral-200 bg-white/80 p-4 shadow-sm">
+    <section className="flex h-full flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Terminal</h2>
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+          <h2 className="text-lg font-semibold text-[color:var(--foreground)]">Terminal</h2>
+          <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--muted)]">
             Diagnostics and execution notes
           </p>
         </div>
@@ -41,8 +41,8 @@ export default function TerminalPanel() {
               onClick={() => toggleFilter(level)}
               className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] transition ${
                 filters[level]
-                  ? "bg-neutral-900 text-white"
-                  : "bg-neutral-100 text-neutral-500"
+                  ? "bg-[color:var(--accent)] text-[color:var(--accent-contrast)]"
+                  : "bg-[color:var(--panel-muted)] text-[color:var(--muted)]"
               }`}
             >
               {level}
@@ -50,9 +50,9 @@ export default function TerminalPanel() {
           ))}
         </div>
       </div>
-      <div className="mt-4 max-h-[220px] space-y-2 overflow-auto pr-2">
+      <div className="mt-4 min-h-[200px] flex-1 space-y-2 overflow-auto pr-2">
         {filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-neutral-200 p-4 text-sm text-neutral-500">
+          <div className="rounded-xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
             No diagnostics in the selected severity range.
           </div>
         ) : (
@@ -64,7 +64,7 @@ export default function TerminalPanel() {
                 if (diag.where?.actorId) selectActor(diag.where.actorId);
                 if (diag.where?.channelId) selectChannel(diag.where.channelId);
               }}
-              className="flex w-full items-start justify-between gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left transition hover:border-neutral-300"
+              className="flex w-full items-start justify-between gap-4 rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] px-4 py-3 text-left transition hover:border-[color:var(--muted)]"
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -75,15 +75,17 @@ export default function TerminalPanel() {
                   >
                     {diag.severity}
                   </span>
-                  <span className="text-xs font-semibold text-neutral-600">{diag.id}</span>
+                  <span className="text-xs font-semibold text-[color:var(--muted-strong)]">
+                    {diag.id}
+                  </span>
                 </div>
-                <p className="mt-2 text-sm text-neutral-800">{diag.message}</p>
+                <p className="mt-2 text-sm text-[color:var(--foreground)]">{diag.message}</p>
                 {diag.hint && (
-                  <p className="mt-1 text-xs text-neutral-500">Hint: {diag.hint}</p>
+                  <p className="mt-1 text-xs text-[color:var(--muted)]">Hint: {diag.hint}</p>
                 )}
               </div>
               {diag.where && (
-                <div className="text-xs text-neutral-400">
+                <div className="text-xs text-[color:var(--muted)]">
                   {diag.where.actorId && <p>Actor: {diag.where.actorId}</p>}
                   {diag.where.channelId && <p>Channel: {diag.where.channelId}</p>}
                   {diag.where.field && <p>Field: {diag.where.field}</p>}

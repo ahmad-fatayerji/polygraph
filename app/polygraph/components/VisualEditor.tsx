@@ -24,8 +24,10 @@ export default function VisualEditor() {
       data: {
         label: (
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-semibold">{actor.label ?? actor.id}</span>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+            <span className="text-sm font-semibold text-[color:var(--foreground)]">
+              {actor.label ?? actor.id}
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted)]">
               {actor.timed ? "timed" : "untimed"}
             </span>
           </div>
@@ -33,12 +35,15 @@ export default function VisualEditor() {
       },
       position: actor.ui ?? defaultPosition(idx),
       style: {
-        borderRadius: 16,
+        borderRadius: 14,
         padding: 12,
-        border: actor.id === selectedActorId ? "2px solid #111827" : "1px solid #cbd5f5",
-        background: actor.timed ? "#eef2ff" : "#f8fafc",
-        color: "#0f172a",
-        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.08)",
+        border:
+          actor.id === selectedActorId
+            ? "2px solid var(--accent)"
+            : "1px solid var(--panel-border)",
+        background: actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)",
+        color: "var(--foreground)",
+        boxShadow: "0 8px 16px rgba(0, 0, 0, 0.08)",
         minWidth: 150,
       },
     }));
@@ -51,11 +56,11 @@ export default function VisualEditor() {
       target: channel.dst,
       label: `${channel.rateSrc} / ${channel.rateDst}`,
       style: {
-        stroke: channel.id === selectedChannelId ? "#111827" : "#94a3b8",
+        stroke: channel.id === selectedChannelId ? "var(--edge-active)" : "var(--edge)",
         strokeWidth: channel.id === selectedChannelId ? 2.2 : 1.4,
       },
       labelStyle: {
-        fill: "#0f172a",
+        fill: "var(--foreground)",
         fontSize: 11,
         fontWeight: 600,
       },
@@ -63,7 +68,7 @@ export default function VisualEditor() {
   }, [model.channels, selectedChannelId]);
 
   return (
-    <div className="h-full w-full rounded-2xl border border-neutral-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-sm">
+    <div className="h-full w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -79,7 +84,7 @@ export default function VisualEditor() {
           setModel({ ...model, actors: nextActors }, "visual");
         }}
       >
-        <Background gap={24} color="#e2e8f0" />
+        <Background gap={24} color="var(--reactflow-grid)" />
         <Controls position="bottom-right" />
       </ReactFlow>
     </div>

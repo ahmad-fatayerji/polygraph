@@ -14,7 +14,7 @@ export default function ScheduleView({
 
   if (!execution?.artifacts?.schedule) {
     return (
-      <div className="rounded-2xl border border-dashed border-neutral-200 bg-white/70 p-4 text-sm text-neutral-500">
+      <div className="rounded-2xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
         Run Execute to generate a witness schedule.
       </div>
     );
@@ -25,24 +25,24 @@ export default function ScheduleView({
       {schedule.map((entry) => (
         <div
           key={`tick-${entry.tick}`}
-          className="rounded-xl border border-neutral-200 bg-white/70 px-4 py-3"
+          className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] px-4 py-3"
         >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
               Tick {entry.tick}
             </p>
-            <span className="text-[11px] text-neutral-400">
+            <span className="text-[11px] text-[color:var(--muted)]">
               {entry.fires.length} fires
             </span>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             {entry.fires.length === 0 ? (
-              <span className="text-sm text-neutral-400">No firings</span>
+              <span className="text-sm text-[color:var(--muted)]">No firings</span>
             ) : (
               entry.fires.map((actorId, idx) => (
                 <span
                   key={`${actorId}-${idx}`}
-                  className="rounded-full bg-neutral-900/10 px-3 py-1 text-xs font-semibold text-neutral-700"
+                  className="rounded-full bg-[color:var(--chip)] px-3 py-1 text-xs font-semibold text-[color:var(--chip-text)]"
                 >
                   {actorLabels.get(actorId) ?? actorId}
                 </span>

@@ -12,7 +12,7 @@ export default function EditorToggle() {
   ];
 
   return (
-    <div className="inline-flex rounded-full bg-neutral-100 p-1">
+    <div className="inline-flex rounded-full bg-[color:var(--panel-muted)] p-1">
       {options.map((option) => (
         <button
           key={option.id}
@@ -20,8 +20,8 @@ export default function EditorToggle() {
           onClick={() => setEditorMode(option.id)}
           className={`rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] transition ${
             editorMode === option.id
-              ? "bg-white text-neutral-900 shadow-sm"
-              : "text-neutral-500 hover:text-neutral-800"
+              ? "bg-[color:var(--panel)] text-[color:var(--foreground)] shadow-sm"
+              : "text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
           }`}
         >
           {option.label}

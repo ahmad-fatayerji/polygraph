@@ -4,10 +4,10 @@ import { usePolygraphStore } from "../store";
 
 const Field = ({ label, value }: { label: string; value: string }) => (
   <div className="space-y-1">
-    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
       {label}
     </p>
-    <p className="text-sm text-neutral-900">{value}</p>
+    <p className="text-sm text-[color:var(--foreground)]">{value}</p>
   </div>
 );
 
@@ -22,7 +22,7 @@ export default function PropertiesSidebar() {
 
   if (!actor && !channel) {
     return (
-      <div className="rounded-2xl border border-dashed border-neutral-200 bg-white/70 p-4 text-sm text-neutral-500">
+      <div className="rounded-2xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
         Select an actor or channel to inspect properties.
       </div>
     );
@@ -30,20 +30,22 @@ export default function PropertiesSidebar() {
 
   if (actor) {
     return (
-      <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white/70 p-4">
+      <div className="space-y-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
             Actor
           </p>
-          <h3 className="text-lg font-semibold text-neutral-900">{actor.label ?? actor.id}</h3>
+          <h3 className="text-lg font-semibold text-[color:var(--foreground)]">
+            {actor.label ?? actor.id}
+          </h3>
         </div>
         <Field label="ID" value={actor.id} />
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
             Label
           </span>
           <input
-            className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
+            className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
             value={actor.label ?? ""}
             onChange={(event) => {
               const nextActors = model.actors.map((item) =>
@@ -77,12 +79,12 @@ export default function PropertiesSidebar() {
         {actor.timed && (
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
                 Freq (Hz)
               </span>
               <input
                 type="number"
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
+                className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
                 value={actor.freq ?? 1}
                 onChange={(event) => {
                   const nextActors = model.actors.map((item) =>
@@ -95,12 +97,12 @@ export default function PropertiesSidebar() {
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
                 Phase
               </span>
               <input
                 type="number"
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
+                className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
                 value={actor.phase ?? 0}
                 onChange={(event) => {
                   const nextActors = model.actors.map((item) =>
@@ -119,23 +121,23 @@ export default function PropertiesSidebar() {
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white/70 p-4">
+    <div className="space-y-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
           Channel
         </p>
-        <h3 className="text-lg font-semibold text-neutral-900">{channel?.id}</h3>
+        <h3 className="text-lg font-semibold text-[color:var(--foreground)]">{channel?.id}</h3>
       </div>
       {channel && (
         <>
           <Field label="Source" value={channel.src} />
           <Field label="Destination" value={channel.dst} />
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
               rateSrc
             </span>
             <input
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
               value={channel.rateSrc}
               onChange={(event) => {
                 const nextChannels = model.channels.map((item) =>
@@ -146,11 +148,11 @@ export default function PropertiesSidebar() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
               rateDst
             </span>
             <input
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
               value={channel.rateDst}
               onChange={(event) => {
                 const nextChannels = model.channels.map((item) =>
@@ -161,11 +163,11 @@ export default function PropertiesSidebar() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
               init
             </span>
             <input
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
               value={channel.init}
               onChange={(event) => {
                 const nextChannels = model.channels.map((item) =>

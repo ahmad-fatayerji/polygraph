@@ -9,6 +9,7 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false 
 export default function JsonEditor() {
   const jsonText = usePolygraphStore((state) => state.jsonText);
   const applyJsonText = usePolygraphStore((state) => state.applyJsonText);
+  const theme = usePolygraphStore((state) => state.theme);
 
   const options = useMemo(
     () => ({
@@ -24,10 +25,10 @@ export default function JsonEditor() {
   );
 
   return (
-    <div className="h-full w-full rounded-2xl border border-neutral-200 bg-white/70 shadow-sm">
+    <div className="h-full w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
       <MonacoEditor
         height="100%"
-        theme="vs"
+        theme={theme === "dark" ? "vs-dark" : "vs"}
         language="json"
         value={jsonText}
         options={options}

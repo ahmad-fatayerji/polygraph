@@ -6,6 +6,8 @@ type ToolbarProps = {
   onValidate: () => void;
   onExecute: () => void;
   onReset: () => void;
+  onToggleTheme: () => void;
+  theme: "light" | "dark";
   status: "idle" | "running";
 };
 
@@ -24,11 +26,11 @@ const ToolbarButton = ({
     "inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2";
   const styles = {
     primary:
-      "bg-black text-white hover:bg-neutral-800 focus:ring-neutral-700 focus:ring-offset-neutral-200",
+      "bg-[color:var(--accent)] text-[color:var(--accent-contrast)] hover:opacity-90 focus:ring-[color:var(--focus-ring)] focus:ring-offset-[color:var(--panel)]",
     ghost:
-      "bg-transparent text-neutral-700 hover:bg-neutral-200 focus:ring-neutral-400 focus:ring-offset-neutral-200",
+      "bg-transparent text-[color:var(--muted-strong)] hover:bg-[color:var(--accent-muted)] focus:ring-[color:var(--focus-ring)] focus:ring-offset-[color:var(--panel)]",
     outline:
-      "border border-neutral-300 text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-400 focus:ring-offset-neutral-200",
+      "border border-[color:var(--panel-border)] text-[color:var(--muted-strong)] hover:bg-[color:var(--accent-muted)] focus:ring-[color:var(--focus-ring)] focus:ring-offset-[color:var(--panel)]",
   }[variant];
 
   return (
@@ -43,18 +45,28 @@ const ToolbarButton = ({
   );
 };
 
-export default function Toolbar({ onValidate, onExecute, onReset, status }: ToolbarProps) {
+export default function Toolbar({
+  onValidate,
+  onExecute,
+  onReset,
+  onToggleTheme,
+  theme,
+  status,
+}: ToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">
+        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
           PolyGraph Workspace
         </p>
-        <h1 className="text-2xl font-semibold text-neutral-900">
+        <h1 className="text-2xl font-semibold text-[color:var(--foreground)]">
           Model editor, verifier, and witness execution
         </h1>
       </div>
       <div className="flex items-center gap-3">
+        <ToolbarButton onClick={onToggleTheme} variant="outline">
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </ToolbarButton>
         <ToolbarButton onClick={onValidate} disabled={status === "running"}>
           Validate
         </ToolbarButton>
