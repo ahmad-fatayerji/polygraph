@@ -18,6 +18,7 @@ export default function TerminalPanel({
   const diagnostics = usePolygraphStore((state) => state.diagnostics);
   const selectActor = usePolygraphStore((state) => state.selectActor);
   const selectChannel = usePolygraphStore((state) => state.selectChannel);
+  const clearDiagnostics = usePolygraphStore((state) => state.clearDiagnostics);
   const [filters, setFilters] = useState({ error: true, warn: true, info: true });
 
   const filtered = useMemo(
@@ -43,6 +44,13 @@ export default function TerminalPanel({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={clearDiagnostics}
+            className="rounded-full border border-[color:var(--panel-border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted-strong)] transition hover:border-[color:var(--muted)]"
+          >
+            Clear
+          </button>
           {(["error", "warn", "info"] as const).map((level) => (
             <button
               key={level}

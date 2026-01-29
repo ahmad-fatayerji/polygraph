@@ -20,6 +20,7 @@ type PolygraphState = {
   applyJsonText: (text: string) => void;
   setModel: (model: PolyGraphModel, source?: "json" | "visual" | "reset") => void;
   setDiagnostics: (diagnostics: Diagnostic[]) => void;
+  clearDiagnostics: () => void;
   setExecution: (execution?: ExecutionResult) => void;
   selectActor: (id?: string) => void;
   selectChannel: (id?: string) => void;
@@ -100,6 +101,7 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
     })),
   setDiagnostics: (diagnostics) =>
     set((state) => ({ diagnostics: [...state.diagnostics, ...diagnostics] })),
+  clearDiagnostics: () => set({ diagnostics: [] }),
   setExecution: (execution) => set({ execution }),
   selectActor: (id) =>
     set({ ui: { selectedActorId: id, selectedChannelId: undefined } }),
