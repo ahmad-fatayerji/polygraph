@@ -1,7 +1,14 @@
-﻿"use client";
+"use client";
 
-import { useMemo } from "react";
-import ReactFlow, { Background, Controls, type Node, type Edge } from "reactflow";
+import { useEffect, useMemo } from "react";
+import ReactFlow, {
+  Background,
+  Controls,
+  type Node,
+  type Edge,
+  useEdgesState,
+  useNodesState,
+} from "reactflow";
 import "reactflow/dist/style.css";
 import { usePolygraphStore } from "../store";
 
@@ -18,7 +25,7 @@ export default function VisualEditor() {
   const selectedActorId = usePolygraphStore((state) => state.ui.selectedActorId);
   const selectedChannelId = usePolygraphStore((state) => state.ui.selectedChannelId);
 
-  const nodes = useMemo<Node[]>(() => {
+  const derivedNodes = useMemo<Node[]>(() => {
     return model.actors.map((actor, idx) => ({
       id: actor.id,
       data: {
@@ -49,7 +56,7 @@ export default function VisualEditor() {
     }));
   }, [model.actors, selectedActorId]);
 
-  const edges = useMemo<Edge[]>(() => {
+  const derivedEdges = useMemo<Edge[]>(() => {
     return model.channels.map((channel) => ({
       id: channel.id,
       source: channel.src,
@@ -67,6 +74,17 @@ export default function VisualEditor() {
     }));
   }, [model.channels, selectedChannelId]);
 
+  const [nodes, setNodes, onNodesChange] = useNodesState(derivedNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(derivedEdges);
+
+  useEffect(() => {
+    setNodes(derivedNodes);
+  }, [derivedNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(derivedEdges);
+  }, [derivedEdges, setEdges]);
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
       <div className="min-h-0 flex-1">
@@ -75,6 +93,8 @@ export default function VisualEditor() {
           edges={edges}
           className="h-full w-full"
           fitView
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
           onNodeClick={(_, node) => selectActor(node.id)}
           onEdgeClick={(_, edge) => selectChannel(edge.id)}
           onNodeDragStop={(_, node) => {
