@@ -1,11 +1,13 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import type { Diagnostic, ExecutionResult, PolyGraphModel } from "@/lib/polygraph/types";
+import { buildDefaultPositions, type ActorPosition } from "./graphLayout";
 
 export type EditorMode = "json" | "visual";
 
 type PolygraphUI = {
   selectedActorId?: string;
   selectedChannelId?: string;
+  actorPositions?: Record<string, ActorPosition>;
 };
 
 type PolygraphState = {
@@ -22,6 +24,7 @@ type PolygraphState = {
   setDiagnostics: (diagnostics: Diagnostic[]) => void;
   clearDiagnostics: () => void;
   setExecution: (execution?: ExecutionResult) => void;
+  setActorPosition: (id: string, position: ActorPosition) => void;
   selectActor: (id?: string) => void;
   selectChannel: (id?: string) => void;
   reset: () => void;
@@ -36,13 +39,11 @@ export const defaultModel: PolyGraphModel = {
       timed: true,
       freq: 200,
       phase: 0,
-      ui: { x: 80, y: 80 },
     },
     {
       id: "est",
       label: "Estimator",
       timed: false,
-      ui: { x: 260, y: 220 },
     },
     {
       id: "ctrl",
@@ -50,13 +51,11 @@ export const defaultModel: PolyGraphModel = {
       timed: true,
       freq: 100,
       phase: 0,
-      ui: { x: 440, y: 80 },
     },
     {
       id: "log",
       label: "Logger",
       timed: false,
-      ui: { x: 620, y: 220 },
     },
   ],
   channels: [
@@ -66,54 +65,193 @@ export const defaultModel: PolyGraphModel = {
   ],
 };
 
-const serializeModel = (model: PolyGraphModel) => JSON.stringify(model, null, 2);
+const stripUiFromModel = (model: PolyGraphModel): PolyGraphModel => ({
+  ...model,
+  actors: model.actors.map(({ ui, ...actor }) => actor),
+});
+
+const extractActorPositions = (model: PolyGraphModel) => {
+  const positions: Record<string, ActorPosition> = {};
+  model.actors.forEach((actor) => {
+    if (actor.ui) {
+      positions[actor.id] = { x: actor.ui.x, y: actor.ui.y };
+    }
+  });
+  return positions;
+};
+
+const mergeActorPositions = (
+  existing: Record<string, ActorPosition> | undefined,
+  model: PolyGraphModel,
+  incoming?: Record<string, ActorPosition>
+) => {
+  const merged = { ...(existing ?? {}), ...(incoming ?? {}) };
+  const next: Record<string, ActorPosition> = {};
+  model.actors.forEach((actor) => {
+    const position = merged[actor.id];
+    if (position) {
+      next[actor.id] = position;
+    }
+  });
+  return next;
+};
+
+const serializeModel = (model: PolyGraphModel) =>
+  JSON.stringify(stripUiFromModel(model), null, 2);
+
+const STORAGE_KEY = "polygraph:jsonText";
+
+const readStoredJsonText = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredJsonText = (text: string) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, text);
+  } catch {
+    // Ignore storage failures (private mode, quota, etc.).
+  }
+};
+
+const defaultActorPositions = buildDefaultPositions(defaultModel.actors);
+const initialState = (() => {
+  let model = defaultModel;
+  let jsonText = serializeModel(defaultModel);
+  let actorPositions = defaultActorPositions;
+  const stored = readStoredJsonText();
+  if (stored) {
+    jsonText = stored;
+    try {
+      const parsed = JSON.parse(stored) as PolyGraphModel;
+      const incomingPositions = extractActorPositions(parsed);
+      const sanitized = stripUiFromModel(parsed);
+      const fallbackPositions = buildDefaultPositions(sanitized.actors);
+      model = sanitized;
+      actorPositions = mergeActorPositions(
+        fallbackPositions,
+        sanitized,
+        incomingPositions
+      );
+    } catch {
+      // Keep default model; preserve stored jsonText in editor.
+    }
+  }
+  return { model, jsonText, actorPositions };
+})();
 
 export const usePolygraphStore = create<PolygraphState>((set) => ({
-  model: defaultModel,
-  jsonText: serializeModel(defaultModel),
+  model: initialState.model,
+  jsonText: initialState.jsonText,
   editorMode: "json",
   diagnostics: [],
   execution: undefined,
-  ui: {},
+  ui: { actorPositions: initialState.actorPositions },
   setEditorMode: (mode) => set({ editorMode: mode }),
-  setJsonText: (text) => set({ jsonText: text }),
+  setJsonText: (text) => {
+    writeStoredJsonText(text);
+    set({ jsonText: text });
+  },
   applyJsonText: (text) => {
+    writeStoredJsonText(text);
     set({ jsonText: text });
     try {
       const parsed = JSON.parse(text) as PolyGraphModel;
+      const incomingPositions = extractActorPositions(parsed);
+      const sanitized = stripUiFromModel(parsed);
       set((state) => ({
-        model: parsed,
+        model: sanitized,
         execution: undefined,
         diagnostics: state.diagnostics,
-        ui: state.ui,
+        ui: {
+          ...state.ui,
+          actorPositions: mergeActorPositions(
+            state.ui.actorPositions,
+            sanitized,
+            incomingPositions
+          ),
+        },
       }));
     } catch {
       // Keep last valid model; diagnostics handled on validate/execute.
     }
   },
   setModel: (model, source = "visual") =>
-    set((state) => ({
-      model,
-      jsonText: source === "json" ? state.jsonText : serializeModel(model),
-      execution: undefined,
-      diagnostics: state.diagnostics,
-      ui: state.ui,
-    })),
+    set((state) => {
+      const incomingPositions = source === "json" ? extractActorPositions(model) : undefined;
+      const sanitized = source === "json" ? stripUiFromModel(model) : model;
+      const actorPositions = mergeActorPositions(
+        state.ui.actorPositions,
+        sanitized,
+        incomingPositions
+      );
+      const selectedActorId = sanitized.actors.some(
+        (actor) => actor.id === state.ui.selectedActorId
+      )
+        ? state.ui.selectedActorId
+        : undefined;
+      const selectedChannelId = sanitized.channels.some(
+        (channel) => channel.id === state.ui.selectedChannelId
+      )
+        ? state.ui.selectedChannelId
+        : undefined;
+      const nextJsonText = source === "json" ? state.jsonText : serializeModel(sanitized);
+      writeStoredJsonText(nextJsonText);
+      return {
+        model: sanitized,
+        jsonText: nextJsonText,
+        execution: undefined,
+        diagnostics: state.diagnostics,
+        ui: {
+          ...state.ui,
+          actorPositions,
+          selectedActorId,
+          selectedChannelId,
+        },
+      };
+    }),
   setDiagnostics: (diagnostics) =>
     set((state) => ({ diagnostics: [...state.diagnostics, ...diagnostics] })),
   clearDiagnostics: () => set({ diagnostics: [] }),
   setExecution: (execution) => set({ execution }),
+  setActorPosition: (id, position) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        actorPositions: { ...(state.ui.actorPositions ?? {}), [id]: position },
+      },
+    })),
   selectActor: (id) =>
-    set({ ui: { selectedActorId: id, selectedChannelId: undefined } }),
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        selectedActorId: id,
+        selectedChannelId: undefined,
+      },
+    })),
   selectChannel: (id) =>
-    set({ ui: { selectedChannelId: id, selectedActorId: undefined } }),
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        selectedChannelId: id,
+        selectedActorId: undefined,
+      },
+    })),
   reset: () =>
-    set({
-      model: defaultModel,
-      jsonText: serializeModel(defaultModel),
-      diagnostics: [],
-      execution: undefined,
-      ui: {},
+    set(() => {
+      const jsonText = serializeModel(defaultModel);
+      writeStoredJsonText(jsonText);
+      return {
+        model: defaultModel,
+        jsonText,
+        diagnostics: [],
+        execution: undefined,
+        ui: { actorPositions: defaultActorPositions },
+      };
     }),
 }));
-

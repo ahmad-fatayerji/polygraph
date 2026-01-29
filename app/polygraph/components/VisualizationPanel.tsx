@@ -1,12 +1,14 @@
-﻿"use client";
+"use client";
 
 import { usePolygraphStore } from "../store";
+import PolygraphGraphView from "./PolygraphGraphView";
 import ScheduleView from "./ScheduleView";
 import TokenTraceView from "./TokenTraceView";
 
 export default function VisualizationPanel() {
   const model = usePolygraphStore((state) => state.model);
   const execution = usePolygraphStore((state) => state.execution);
+  const hasExecution = Boolean(execution?.ok && execution?.artifacts);
 
   return (
     <section className="flex h-full min-h-0 flex-1 flex-col gap-4 px-4 pb-4">
@@ -15,7 +17,19 @@ export default function VisualizationPanel() {
           Results
         </h2>
       </div>
-      <div className="grid min-h-0 flex-1 gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto">
+        <div className="min-h-0">
+          <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
+            PolyGraph
+          </h3>
+          {hasExecution ? (
+            <PolygraphGraphView />
+          ) : (
+            <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
+              Run Execute to render the verified PolyGraph.
+            </div>
+          )}
+        </div>
         <div className="min-h-0">
           <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
             Schedule

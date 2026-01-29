@@ -1,4 +1,4 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 :root {
   --background: #f6f2ed;
@@ -171,3 +171,32 @@ body {
   background: var(--panel);
   border-color: var(--panel-border);
 }
+
+.react-flow__handle {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: transparent;
+  border: 0;
+  position: relative;
+}
+.react-flow__handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--panel);
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+  transition: box-shadow 120ms ease;
+}
+.react-flow__handle:hover::before {
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.14);
+}
+
+
+
