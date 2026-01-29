@@ -9,21 +9,20 @@ export default function VisualizationPanel() {
   const execution = usePolygraphStore((state) => state.execution);
 
   return (
-    <section className="flex h-full flex-col gap-4">
+    <section className="flex h-full min-h-0 flex-1 flex-col gap-4 px-4 pb-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-[color:var(--foreground)]">Results</h2>
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
-          Schedule + Tokens
-        </div>
+        <h2 className="text-lg font-semibold text-[color:var(--foreground)]">
+          Results
+        </h2>
       </div>
-      <div className="grid flex-1 gap-4">
-        <div>
+      <div className="grid min-h-0 flex-1 gap-4">
+        <div className="min-h-0">
           <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
             Schedule
           </h3>
           <ScheduleView execution={execution} model={model} />
         </div>
-        <div>
+        <div className="min-h-0">
           <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
             Token Trace
           </h3>

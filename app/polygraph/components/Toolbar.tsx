@@ -6,8 +6,6 @@ type ToolbarProps = {
   onValidate: () => void;
   onExecute: () => void;
   onReset: () => void;
-  onToggleTheme: () => void;
-  theme: "light" | "dark";
   status: "idle" | "running";
 };
 
@@ -49,24 +47,16 @@ export default function Toolbar({
   onValidate,
   onExecute,
   onReset,
-  onToggleTheme,
-  theme,
   status,
 }: ToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
-          PolyGraph Workspace
+          PolyGraph
         </p>
-        <h1 className="text-2xl font-semibold text-[color:var(--foreground)]">
-          Model editor, verifier, and witness execution
-        </h1>
       </div>
       <div className="flex items-center gap-3">
-        <ToolbarButton onClick={onToggleTheme} variant="outline">
-          {theme === "dark" ? "Light mode" : "Dark mode"}
-        </ToolbarButton>
         <ToolbarButton onClick={onValidate} disabled={status === "running"}>
           Validate
         </ToolbarButton>
@@ -77,7 +67,11 @@ export default function Toolbar({
         >
           Execute
         </ToolbarButton>
-        <ToolbarButton onClick={onReset} variant="ghost" disabled={status === "running"}>
+        <ToolbarButton
+          onClick={onReset}
+          variant="ghost"
+          disabled={status === "running"}
+        >
           Reset
         </ToolbarButton>
       </div>

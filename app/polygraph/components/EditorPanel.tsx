@@ -10,16 +10,20 @@ export default function EditorPanel() {
   const editorMode = usePolygraphStore((state) => state.editorMode);
 
   return (
-    <section className="flex h-full flex-col gap-4">
+    <section className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden px-4 pb-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-[color:var(--foreground)]">Editor</h2>
         <EditorToggle />
       </div>
-      <div className="grid h-full flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
-        <div className="h-full min-h-[520px]">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden xl:flex-row">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {editorMode === "json" ? <JsonEditor /> : <VisualEditor />}
         </div>
-        <PropertiesSidebar />
+        {editorMode === "visual" ? (
+          <div className="min-h-0 w-full xl:w-[240px] xl:flex-shrink-0">
+            <PropertiesSidebar />
+          </div>
+        ) : null}
       </div>
     </section>
   );

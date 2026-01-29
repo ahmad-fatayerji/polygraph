@@ -68,25 +68,28 @@ export default function VisualEditor() {
   }, [model.channels, selectedChannelId]);
 
   return (
-    <div className="h-full w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        fitView
-        onNodeClick={(_, node) => selectActor(node.id)}
-        onEdgeClick={(_, edge) => selectChannel(edge.id)}
-        onNodeDragStop={(_, node) => {
-          const nextActors = model.actors.map((actor) =>
-            actor.id === node.id
-              ? { ...actor, ui: { x: node.position.x, y: node.position.y } }
-              : actor
-          );
-          setModel({ ...model, actors: nextActors }, "visual");
-        }}
-      >
-        <Background gap={24} color="var(--reactflow-grid)" />
-        <Controls position="bottom-right" />
-      </ReactFlow>
+    <div className="flex h-full min-h-0 w-full flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
+      <div className="min-h-0 flex-1">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          className="h-full w-full"
+          fitView
+          onNodeClick={(_, node) => selectActor(node.id)}
+          onEdgeClick={(_, edge) => selectChannel(edge.id)}
+          onNodeDragStop={(_, node) => {
+            const nextActors = model.actors.map((actor) =>
+              actor.id === node.id
+                ? { ...actor, ui: { x: node.position.x, y: node.position.y } }
+                : actor
+            );
+            setModel({ ...model, actors: nextActors }, "visual");
+          }}
+        >
+          <Background gap={24} color="var(--reactflow-grid)" />
+          <Controls position="bottom-right" />
+        </ReactFlow>
+      </div>
     </div>
   );
 }
