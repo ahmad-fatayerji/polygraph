@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import dynamic from "next/dynamic";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { usePolygraphStore } from "../store";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -9,7 +9,8 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false 
 export default function JsonEditor() {
   const jsonText = usePolygraphStore((state) => state.jsonText);
   const applyJsonText = usePolygraphStore((state) => state.applyJsonText);
-  const theme = usePolygraphStore((state) => state.theme);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<import("monaco-editor").editor.IStandaloneCodeEditor | null>(null);
 
   const options = useMemo(
     () => ({
@@ -20,22 +21,42 @@ export default function JsonEditor() {
       wordWrap: "on",
       formatOnPaste: true,
       formatOnType: false,
+      automaticLayout: true,
     }),
     []
   );
 
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(() => {
+      editorRef.current?.layout();
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="h-full w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
-      <MonacoEditor
-        height="100%"
-        theme={theme === "dark" ? "vs-dark" : "vs"}
-        language="json"
-        value={jsonText}
-        options={options}
-        onChange={(value) => {
-          if (value !== undefined) applyJsonText(value);
-        }}
-      />
+    <div
+      ref={containerRef}
+      className="flex h-full min-h-0 w-full flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
+    >
+      <div className="min-h-0 flex-1">
+        <MonacoEditor
+          height="100%"
+          width="100%"
+          className="h-full w-full"
+          theme="vs"
+          language="json"
+          value={jsonText}
+          options={options}
+          onMount={(editor) => {
+            editorRef.current = editor;
+          }}
+          onChange={(value) => {
+            if (value !== undefined) applyJsonText(value);
+          }}
+        />
+      </div>
     </div>
   );
 }

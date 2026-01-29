@@ -10,7 +10,11 @@ const severityStyles: Record<Diagnostic["severity"], string> = {
   info: "bg-[color:var(--severity-info-bg)] text-[color:var(--severity-info-text)]",
 };
 
-export default function TerminalPanel() {
+export default function TerminalPanel({
+  variant = "panel",
+}: {
+  variant?: "panel" | "embedded";
+}) {
   const diagnostics = usePolygraphStore((state) => state.diagnostics);
   const selectActor = usePolygraphStore((state) => state.selectActor);
   const selectChannel = usePolygraphStore((state) => state.selectChannel);
@@ -24,8 +28,13 @@ export default function TerminalPanel() {
   const toggleFilter = (key: keyof typeof filters) =>
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
 
+  const containerStyles =
+    variant === "embedded"
+      ? "flex h-full flex-col bg-transparent p-4"
+      : "flex h-full flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-4 shadow-sm";
+
   return (
-    <section className="flex h-full flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-4 shadow-sm">
+    <section className={containerStyles}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-[color:var(--foreground)]">Terminal</h2>

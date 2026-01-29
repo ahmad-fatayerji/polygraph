@@ -1,7 +1,11 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Diagnostic, ExecutionResult, PolyGraphModel } from "@/lib/polygraph/types";
+import type {
+  Diagnostic,
+  ExecutionResult,
+  PolyGraphModel,
+} from "@/lib/polygraph/types";
 import Toolbar from "./components/Toolbar";
 import EditorPanel from "./components/EditorPanel";
 import VisualizationPanel from "./components/VisualizationPanel";
@@ -14,17 +18,26 @@ export default function PolygraphWorkspace() {
   const setExecution = usePolygraphStore((state) => state.setExecution);
   const setModel = usePolygraphStore((state) => state.setModel);
   const reset = usePolygraphStore((state) => state.reset);
-  const theme = usePolygraphStore((state) => state.theme);
-  const setTheme = usePolygraphStore((state) => state.setTheme);
-  const toggleTheme = usePolygraphStore((state) => state.toggleTheme);
 
   const workerRef = useRef<Worker | null>(null);
   const [status, setStatus] = useState<"idle" | "running">("idle");
   const [terminalHeight, setTerminalHeight] = useState(280);
-  const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const [editorWidthPx, setEditorWidthPx] = useState<number | null>(null);
+  const splitRef = useRef<HTMLDivElement | null>(null);
+  const splitDragRef = useRef<{
+    left: number;
+    min: number;
+    max: number;
+  } | null>(null);
+  const splitHandleWidth = 8;
+  const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(
+    null,
+  );
 
   useEffect(() => {
-    const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
+    const worker = new Worker(new URL("./worker.ts", import.meta.url), {
+      type: "module",
+    });
     workerRef.current = worker;
 
     worker.onmessage = (event: MessageEvent<ExecutionResult>) => {
@@ -53,32 +66,25 @@ export default function PolygraphWorkspace() {
   }, [setDiagnostics, setExecution]);
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem("polygraph-theme");
-    if (storedTheme === "light" || storedTheme === "dark") {
-      setTheme(storedTheme);
-    } else {
-      const media = window.matchMedia("(prefers-color-scheme: dark)");
-      setTheme(media.matches ? "dark" : "light");
-    }
-  }, [setTheme]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    window.localStorage.setItem("polygraph-theme", theme);
-  }, [theme]);
+    document.documentElement.dataset.theme = "light";
+    document.documentElement.style.colorScheme = "light";
+  }, []);
 
   useEffect(() => {
     const updateHeight = (clientY: number) => {
       if (!dragStateRef.current) return;
       const delta = dragStateRef.current.startY - clientY;
       const minHeight = 200;
-      const maxHeight = Math.max(minHeight, Math.round(window.innerHeight * 0.55));
+      const maxHeight = Math.max(
+        minHeight,
+        Math.round(window.innerHeight * 0.55),
+      );
       const nextHeight = dragStateRef.current.startHeight + delta;
       setTerminalHeight(Math.min(maxHeight, Math.max(minHeight, nextHeight)));
     };
 
-    const handlePointerMove = (event: PointerEvent) => updateHeight(event.clientY);
+    const handlePointerMove = (event: PointerEvent) =>
+      updateHeight(event.clientY);
     const handleMouseMove = (event: MouseEvent) => updateHeight(event.clientY);
 
     const stopDrag = () => {
@@ -103,6 +109,63 @@ export default function PolygraphWorkspace() {
       window.removeEventListener("mouseup", stopDrag);
     };
   }, []);
+
+  useEffect(() => {
+    const updateWidth = (clientX: number) => {
+      if (!splitDragRef.current) return;
+      const next = clientX - splitDragRef.current.left;
+      const clamped = Math.min(
+        splitDragRef.current.max,
+        Math.max(splitDragRef.current.min, next),
+      );
+      setEditorWidthPx(clamped);
+    };
+
+    const handlePointerMove = (event: PointerEvent) =>
+      updateWidth(event.clientX);
+
+    const stopDrag = () => {
+      if (splitDragRef.current) {
+        splitDragRef.current = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!splitRef.current) return;
+    const updateInitial = () => {
+      if (!splitRef.current) return;
+      const rect = splitRef.current.getBoundingClientRect();
+      const minEditor = 100;
+      const minResult = 280;
+      const maxEditor = Math.max(
+        minEditor,
+        rect.width - minResult - splitHandleWidth,
+      );
+      setEditorWidthPx((prev) => {
+        const fallback = Math.round(rect.width * 0.55);
+        const next = prev ?? fallback;
+        return Math.min(maxEditor, Math.max(minEditor, next));
+      });
+    };
+
+    updateInitial();
+    const observer = new ResizeObserver(updateInitial);
+    observer.observe(splitRef.current);
+    return () => observer.disconnect();
+  }, [splitHandleWidth]);
 
   const runVerification = useCallback(
     (computeExecution: boolean) => {
@@ -138,80 +201,112 @@ export default function PolygraphWorkspace() {
         return;
       }
 
-      workerRef.current.postMessage({ model: parsed, options: { computeExecution } });
+      workerRef.current.postMessage({
+        model: parsed,
+        options: { computeExecution },
+      });
     },
-    [jsonText, setDiagnostics, setExecution, setModel]
+    [jsonText, setDiagnostics, setExecution, setModel],
   );
 
   return (
-    <div className="min-h-screen bg-transparent px-4 py-6 text-[color:var(--foreground)]">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1500px] flex-col gap-6">
-        <header
-          className="animate-float-in rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-6 shadow-sm"
+    <div className="min-h-screen bg-transparent px-0 py-0 text-[color:var(--foreground)]">
+      <div
+        className="grid min-h-screen"
+        style={{ gridTemplateRows: `minmax(0, 1fr) 12px ${terminalHeight}px` }}
+      >
+        <main
+          className="animate-float-in min-h-0 overflow-hidden border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
           style={{ animationDelay: "40ms" }}
         >
-          <Toolbar
-            onValidate={() => runVerification(false)}
-            onExecute={() => runVerification(true)}
-            onReset={reset}
-            status={status}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-          />
-          {status === "running" && (
-            <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-              Verifying... running in worker
-            </p>
-          )}
-        </header>
-        <div className="flex min-h-0 flex-1 flex-col">
-          <main className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
-            <div
-              className="animate-float-in rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-6 shadow-sm"
-              style={{ animationDelay: "120ms" }}
-            >
-              <EditorPanel />
-            </div>
-            <div
-              className="animate-float-in rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-6 shadow-sm"
-              style={{ animationDelay: "180ms" }}
-            >
-              <VisualizationPanel />
-            </div>
-          </main>
           <div
-            className="mt-4 h-3 cursor-row-resize touch-none rounded-full bg-[color:var(--panel-border)]"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              if (event.currentTarget.setPointerCapture) {
-                event.currentTarget.setPointerCapture(event.pointerId);
-              }
-              dragStateRef.current = {
-                startY: event.clientY,
-                startHeight: terminalHeight,
-              };
-              document.body.style.cursor = "row-resize";
-              document.body.style.userSelect = "none";
-            }}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              dragStateRef.current = {
-                startY: event.clientY,
-                startHeight: terminalHeight,
-              };
-              document.body.style.cursor = "row-resize";
-              document.body.style.userSelect = "none";
-            }}
-            role="separator"
-            aria-label="Resize terminal"
-            aria-orientation="horizontal"
-          />
-          <div
-            className="animate-float-in mt-4"
-            style={{ animationDelay: "220ms", height: terminalHeight }}
+            ref={splitRef}
+            className="flex h-full min-h-0 flex-col lg:flex-row"
           >
-            <TerminalPanel />
+            <div
+              className="h-full min-h-0 min-w-0 overflow-hidden"
+              style={{
+                width: editorWidthPx ? `${editorWidthPx}px` : "55%",
+                flex: "0 0 auto",
+              }}
+            >
+              <div className="flex h-full min-h-0 flex-col border-b border-[color:var(--panel-border)] pt-4 lg:border-b-0 lg:border-r-0">
+                <div className="mb-4 px-4">
+                  <Toolbar
+                    onValidate={() => runVerification(false)}
+                    onExecute={() => runVerification(true)}
+                    onReset={reset}
+                    status={status}
+                  />
+                  {status === "running" && (
+                    <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                      Verifying... running in worker
+                    </p>
+                  )}
+                </div>
+                <div className="min-h-0 flex-1">
+                  <EditorPanel />
+                </div>
+              </div>
+            </div>
+            <div
+              className="hidden cursor-col-resize bg-[color:var(--panel-border)] lg:block"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                if (event.currentTarget.setPointerCapture) {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }
+                if (!splitRef.current) return;
+                const rect = splitRef.current.getBoundingClientRect();
+                const minEditor = 320;
+                const minResult = 280;
+                const maxEditor = Math.max(
+                  minEditor,
+                  rect.width - minResult - splitHandleWidth,
+                );
+                splitDragRef.current = {
+                  left: rect.left,
+                  min: minEditor,
+                  max: maxEditor,
+                };
+                setEditorWidthPx(
+                  (prev) => prev ?? Math.round(rect.width * 0.55),
+                );
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+              }}
+              style={{ width: splitHandleWidth }}
+              role="separator"
+              aria-label="Resize editor panel"
+              aria-orientation="vertical"
+            />
+            <div className="h-full min-h-0 min-w-0 flex-1 border-t border-[color:var(--panel-border)] lg:border-t-0">
+              <div className="h-full min-h-0 pt-4">
+                <VisualizationPanel />
+              </div>
+            </div>
           </div>
+        </main>
+        <div
+          className="cursor-row-resize touch-none bg-[color:var(--panel-border)]"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            if (event.currentTarget.setPointerCapture) {
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }
+            dragStateRef.current = {
+              startY: event.clientY,
+              startHeight: terminalHeight,
+            };
+            document.body.style.cursor = "row-resize";
+            document.body.style.userSelect = "none";
+          }}
+          role="separator"
+          aria-label="Resize terminal"
+          aria-orientation="horizontal"
+        />
+        <div className="animate-float-in min-h-[200px] border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
+          <TerminalPanel variant="embedded" />
         </div>
       </div>
     </div>

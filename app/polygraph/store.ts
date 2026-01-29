@@ -14,7 +14,6 @@ type PolygraphState = {
   editorMode: EditorMode;
   diagnostics: Diagnostic[];
   execution?: ExecutionResult;
-  theme: "light" | "dark";
   ui: PolygraphUI;
   setEditorMode: (mode: EditorMode) => void;
   setJsonText: (text: string) => void;
@@ -22,8 +21,6 @@ type PolygraphState = {
   setModel: (model: PolyGraphModel, source?: "json" | "visual" | "reset") => void;
   setDiagnostics: (diagnostics: Diagnostic[]) => void;
   setExecution: (execution?: ExecutionResult) => void;
-  setTheme: (theme: "light" | "dark") => void;
-  toggleTheme: () => void;
   selectActor: (id?: string) => void;
   selectChannel: (id?: string) => void;
   reset: () => void;
@@ -76,7 +73,6 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
   editorMode: "json",
   diagnostics: [],
   execution: undefined,
-  theme: "light",
   ui: {},
   setEditorMode: (mode) => set({ editorMode: mode }),
   setJsonText: (text) => set({ jsonText: text }),
@@ -104,9 +100,6 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
     })),
   setDiagnostics: (diagnostics) => set({ diagnostics }),
   setExecution: (execution) => set({ execution }),
-  setTheme: (theme) => set({ theme }),
-  toggleTheme: () =>
-    set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
   selectActor: (id) =>
     set({ ui: { selectedActorId: id, selectedChannelId: undefined } }),
   selectChannel: (id) =>
