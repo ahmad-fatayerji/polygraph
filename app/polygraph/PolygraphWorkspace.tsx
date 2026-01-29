@@ -210,9 +210,9 @@ export default function PolygraphWorkspace() {
   );
 
   return (
-    <div className="min-h-screen bg-transparent px-0 py-0 text-[color:var(--foreground)]">
+    <div className="h-[100dvh] overflow-hidden bg-transparent px-0 py-0 text-[color:var(--foreground)]">
       <div
-        className="grid min-h-screen"
+        className="grid h-full min-h-0"
         style={{ gridTemplateRows: `minmax(0, 1fr) 12px ${terminalHeight}px` }}
       >
         <main
@@ -303,7 +303,7 @@ export default function PolygraphWorkspace() {
           aria-label="Resize terminal"
           aria-orientation="horizontal"
         />
-        <div className="animate-float-in min-h-[200px] border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
+        <div className="animate-float-in min-h-0 overflow-hidden border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
           <TerminalPanel variant="embedded" />
         </div>
       </div>

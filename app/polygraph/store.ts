@@ -98,7 +98,8 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
       diagnostics: state.diagnostics,
       ui: state.ui,
     })),
-  setDiagnostics: (diagnostics) => set({ diagnostics }),
+  setDiagnostics: (diagnostics) =>
+    set((state) => ({ diagnostics: [...state.diagnostics, ...diagnostics] })),
   setExecution: (execution) => set({ execution }),
   selectActor: (id) =>
     set({ ui: { selectedActorId: id, selectedChannelId: undefined } }),

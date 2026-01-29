@@ -30,8 +30,8 @@ export default function TerminalPanel({
 
   const containerStyles =
     variant === "embedded"
-      ? "flex h-full flex-col bg-transparent p-4"
-      : "flex h-full flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-4 shadow-sm";
+      ? "flex h-full min-h-0 flex-col bg-transparent p-4"
+      : "flex h-full min-h-0 flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-4 shadow-sm";
 
   return (
     <section className={containerStyles}>
@@ -59,7 +59,7 @@ export default function TerminalPanel({
           ))}
         </div>
       </div>
-      <div className="mt-4 min-h-[200px] flex-1 space-y-2 overflow-auto pr-2">
+      <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-auto pr-2">
         {filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
             No diagnostics in the selected severity range.
