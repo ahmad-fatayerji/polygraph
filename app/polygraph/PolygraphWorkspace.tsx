@@ -30,6 +30,8 @@ export default function PolygraphWorkspace() {
     max: number;
   } | null>(null);
   const splitHandleWidth = 8;
+  const minEditorWidth = 500;
+  const minResultWidth = 280;
   const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(
     null,
   );
@@ -148,16 +150,14 @@ export default function PolygraphWorkspace() {
     const updateInitial = () => {
       if (!splitRef.current) return;
       const rect = splitRef.current.getBoundingClientRect();
-      const minEditor = 100;
-      const minResult = 280;
       const maxEditor = Math.max(
-        minEditor,
-        rect.width - minResult - splitHandleWidth,
+        minEditorWidth,
+        rect.width - minResultWidth - splitHandleWidth,
       );
       setEditorWidthPx((prev) => {
         const fallback = Math.round(rect.width * 0.55);
         const next = prev ?? fallback;
-        return Math.min(maxEditor, Math.max(minEditor, next));
+        return Math.min(maxEditor, Math.max(minEditorWidth, next));
       });
     };
 
@@ -258,15 +258,13 @@ export default function PolygraphWorkspace() {
                 }
                 if (!splitRef.current) return;
                 const rect = splitRef.current.getBoundingClientRect();
-                const minEditor = 320;
-                const minResult = 280;
                 const maxEditor = Math.max(
-                  minEditor,
-                  rect.width - minResult - splitHandleWidth,
+                  minEditorWidth,
+                  rect.width - minResultWidth - splitHandleWidth,
                 );
                 splitDragRef.current = {
                   left: rect.left,
-                  min: minEditor,
+                  min: minEditorWidth,
                   max: maxEditor,
                 };
                 setEditorWidthPx(
