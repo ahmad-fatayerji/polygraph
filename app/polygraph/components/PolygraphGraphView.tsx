@@ -140,6 +140,7 @@ export default function PolygraphGraphView() {
           backgroundColor: background,
           width,
           height,
+          skipFonts: true,
           style: {
             width: `${width}px`,
             height: `${height}px`,
