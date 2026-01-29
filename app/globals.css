@@ -198,5 +198,15 @@ body {
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.14);
 }
 
+.react-flow__node.selected {
+  border: 2px solid var(--accent) !important;
+}
+
+.react-flow__edge.selected path,
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--edge-active) !important;
+  stroke-width: 2.2 !important;
+}
+
 
 
