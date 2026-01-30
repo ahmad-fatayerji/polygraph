@@ -9,8 +9,10 @@ import ReactFlow, {
   type Edge,
   type Node,
   type ReactFlowInstance,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useStoreApi,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import type { PolyGraphModel } from "@/lib/polygraph/types";
@@ -93,7 +95,7 @@ const writeStoredHistory = (history: { undo: HistoryEntry[]; redo: HistoryEntry[
   }
 };
 
-export default function VisualEditor() {
+function VisualEditorInner() {
   const model = usePolygraphStore((state) => state.model);
   const setModel = usePolygraphStore((state) => state.setModel);
   const setActorPosition = usePolygraphStore((state) => state.setActorPosition);
@@ -103,6 +105,8 @@ export default function VisualEditor() {
   const actorPositions = usePolygraphStore((state) => state.ui.actorPositions);
   const selectedActorId = usePolygraphStore((state) => state.ui.selectedActorId);
   const selectedChannelId = usePolygraphStore((state) => state.ui.selectedChannelId);
+
+  const store = useStoreApi();
 
   const flowRef = useRef<ReactFlowInstance | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -513,8 +517,16 @@ export default function VisualEditor() {
       setActorPositions(newActorPositions);
     }
     
-    // First, clear all selections to remove the blue highlight box
-    setNodes((prev) => prev.map((node) => ({ ...node, selected: false })));
+    // Clear ReactFlow's internal selection state to remove the blue highlight box
+    const { unselectNodesAndEdges, resetSelectedElements } = store.getState();
+    if (typeof unselectNodesAndEdges === 'function') {
+      unselectNodesAndEdges();
+    }
+    if (typeof resetSelectedElements === 'function') {
+      resetSelectedElements();
+    }
+    
+    // Also clear our tracked selection refs
     selectedNodeIdsRef.current = [];
     selectedEdgeIdsRef.current = [];
     
@@ -538,7 +550,7 @@ export default function VisualEditor() {
     selectActor,
     setActorPositions,
     setModel,
-    setNodes,
+    store,
   ]);
 
   const getFlowPositionFromPointer = useCallback(() => {
@@ -978,3 +990,10 @@ export default function VisualEditor() {
   );
 }
 
+export default function VisualEditor() {
+  return (
+    <ReactFlowProvider>
+      <VisualEditorInner />
+    </ReactFlowProvider>
+  );
+}
