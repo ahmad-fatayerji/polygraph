@@ -198,7 +198,10 @@ body {
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.14);
 }
 
-.react-flow__node.selected {
+.react-flow__node-default.selected,
+.react-flow__node-input.selected,
+.react-flow__node-output.selected,
+.react-flow__node-group.selected {
   border: 2px solid var(--accent) !important;
 }
 

@@ -7,8 +7,10 @@ import TokenTraceView from "./TokenTraceView";
 
 export default function VisualizationPanel() {
   const model = usePolygraphStore((state) => state.model);
+  const executionModel = usePolygraphStore((state) => state.executionModel);
   const execution = usePolygraphStore((state) => state.execution);
-  const hasExecution = Boolean(execution?.ok && execution?.artifacts);
+  const hasExecutionModel = Boolean(executionModel);
+  const renderModel = executionModel;
 
   return (
     <section className="flex h-full min-h-0 flex-1 flex-col gap-4 px-4 pb-4">
@@ -22,11 +24,11 @@ export default function VisualizationPanel() {
           <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
             PolyGraph
           </h3>
-          {hasExecution ? (
-            <PolygraphGraphView />
+          {hasExecutionModel && renderModel ? (
+            <PolygraphGraphView model={renderModel} />
           ) : (
             <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
-              Run Execute to render the verified PolyGraph.
+              Run Execute to compile a PolyGraph render.
             </div>
           )}
         </div>
@@ -34,13 +36,13 @@ export default function VisualizationPanel() {
           <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
             Schedule
           </h3>
-          <ScheduleView execution={execution} model={model} />
+          <ScheduleView execution={execution} model={renderModel ?? model} />
         </div>
         <div className="min-h-0">
           <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
             Token Trace
           </h3>
-          <TokenTraceView execution={execution} model={model} />
+          <TokenTraceView execution={execution} model={renderModel ?? model} />
         </div>
       </div>
     </section>

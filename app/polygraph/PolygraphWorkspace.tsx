@@ -12,14 +12,32 @@ import VisualizationPanel from "./components/VisualizationPanel";
 import TerminalPanel from "./components/TerminalPanel";
 import { usePolygraphStore } from "./store";
 
+const isRenderableModel = (value: unknown): value is PolyGraphModel =>
+  Boolean(value) &&
+  typeof value === "object" &&
+  Array.isArray((value as PolyGraphModel).actors) &&
+  Array.isArray((value as PolyGraphModel).channels) &&
+  (value as PolyGraphModel).actors.every(
+    (actor) => typeof actor?.id === "string" && actor.id.trim().length > 0,
+  ) &&
+  (value as PolyGraphModel).channels.every(
+    (channel) =>
+      typeof channel?.id === "string" &&
+      channel.id.trim().length > 0 &&
+      typeof channel.src === "string" &&
+      typeof channel.dst === "string",
+  );
+
 export default function PolygraphWorkspace() {
   const jsonText = usePolygraphStore((state) => state.jsonText);
   const setDiagnostics = usePolygraphStore((state) => state.setDiagnostics);
   const setExecution = usePolygraphStore((state) => state.setExecution);
+  const setExecutionModel = usePolygraphStore((state) => state.setExecutionModel);
   const setModel = usePolygraphStore((state) => state.setModel);
   const reset = usePolygraphStore((state) => state.reset);
 
   const workerRef = useRef<Worker | null>(null);
+  const pendingRunRef = useRef<"validate" | "execute" | null>(null);
   const [status, setStatus] = useState<"idle" | "running">("idle");
   const [terminalHeight, setTerminalHeight] = useState(280);
   const [editorWidthPx, setEditorWidthPx] = useState<number | null>(null);
@@ -45,7 +63,10 @@ export default function PolygraphWorkspace() {
     worker.onmessage = (event: MessageEvent<ExecutionResult>) => {
       const result = event.data;
       setDiagnostics(result.diagnostics);
-      setExecution(result.artifacts ? result : undefined);
+      if (pendingRunRef.current === "execute") {
+        setExecution(result.artifacts ? result : undefined);
+      }
+      pendingRunRef.current = null;
       setStatus("idle");
     };
 
@@ -57,7 +78,10 @@ export default function PolygraphWorkspace() {
           message: "Worker execution failed.",
         },
       ]);
-      setExecution(undefined);
+      if (pendingRunRef.current === "execute") {
+        setExecution(undefined);
+      }
+      pendingRunRef.current = null;
       setStatus("idle");
     };
 
@@ -169,11 +193,9 @@ export default function PolygraphWorkspace() {
 
   const runVerification = useCallback(
     (computeExecution: boolean) => {
-      setStatus("running");
-      setExecution(undefined);
-      let parsed: PolyGraphModel;
+      let parsed: unknown;
       try {
-        parsed = JSON.parse(jsonText) as PolyGraphModel;
+        parsed = JSON.parse(jsonText);
       } catch {
         const diagnostics: Diagnostic[] = [
           {
@@ -187,7 +209,25 @@ export default function PolygraphWorkspace() {
         return;
       }
 
-      setModel(parsed, "json");
+      if (!isRenderableModel(parsed)) {
+        setDiagnostics([
+          {
+            id: "E_TOPOLOGY_INVALID",
+            severity: "error",
+            message:
+              "Model must include actors/channels arrays with string ids and endpoints.",
+          },
+        ]);
+        setStatus("idle");
+        return;
+      }
+
+      const model = parsed as PolyGraphModel;
+      if (computeExecution) {
+        setExecution(undefined);
+        setExecutionModel(model);
+      }
+      setModel(model, "json");
 
       if (!workerRef.current) {
         setDiagnostics([
@@ -197,16 +237,19 @@ export default function PolygraphWorkspace() {
             message: "Verifier worker is not available.",
           },
         ]);
+        pendingRunRef.current = null;
         setStatus("idle");
         return;
       }
 
+      pendingRunRef.current = computeExecution ? "execute" : "validate";
+      setStatus("running");
       workerRef.current.postMessage({
-        model: parsed,
+        model,
         options: { computeExecution },
       });
     },
-    [jsonText, setDiagnostics, setExecution, setModel],
+    [jsonText, setDiagnostics, setExecution, setExecutionModel, setModel],
   );
 
   return (

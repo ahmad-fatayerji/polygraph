@@ -13,10 +13,10 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { toJpeg, toPng, toSvg } from "html-to-image";
 import { usePolygraphStore } from "../store";
+import type { PolyGraphModel } from "@/lib/polygraph/types";
 import { defaultPosition } from "../graphLayout";
 
-export default function PolygraphGraphView() {
-  const model = usePolygraphStore((state) => state.model);
+export default function PolygraphGraphView({ model }: { model: PolyGraphModel }) {
   const actorPositions = usePolygraphStore((state) => state.ui.actorPositions);
   const selectedActorId = usePolygraphStore((state) => state.ui.selectedActorId);
   const selectedChannelId = usePolygraphStore((state) => state.ui.selectedChannelId);

@@ -16,6 +16,7 @@ type PolygraphState = {
   editorMode: EditorMode;
   diagnostics: Diagnostic[];
   execution?: ExecutionResult;
+  executionModel?: PolyGraphModel;
   ui: PolygraphUI;
   setEditorMode: (mode: EditorMode) => void;
   setJsonText: (text: string) => void;
@@ -24,7 +25,9 @@ type PolygraphState = {
   setDiagnostics: (diagnostics: Diagnostic[]) => void;
   clearDiagnostics: () => void;
   setExecution: (execution?: ExecutionResult) => void;
+  setExecutionModel: (model?: PolyGraphModel) => void;
   setActorPosition: (id: string, position: ActorPosition) => void;
+  setActorPositions: (positions: Record<string, ActorPosition>) => void;
   selectActor: (id?: string) => void;
   selectChannel: (id?: string) => void;
   reset: () => void;
@@ -151,6 +154,7 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
   editorMode: "json",
   diagnostics: [],
   execution: undefined,
+  executionModel: undefined,
   ui: { actorPositions: initialState.actorPositions },
   setEditorMode: (mode) => set({ editorMode: mode }),
   setJsonText: (text) => {
@@ -166,7 +170,6 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
       const sanitized = stripUiFromModel(parsed);
       set((state) => ({
         model: sanitized,
-        execution: undefined,
         diagnostics: state.diagnostics,
         ui: {
           ...state.ui,
@@ -205,7 +208,6 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
       return {
         model: sanitized,
         jsonText: nextJsonText,
-        execution: undefined,
         diagnostics: state.diagnostics,
         ui: {
           ...state.ui,
@@ -219,11 +221,20 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
     set((state) => ({ diagnostics: [...state.diagnostics, ...diagnostics] })),
   clearDiagnostics: () => set({ diagnostics: [] }),
   setExecution: (execution) => set({ execution }),
+  setExecutionModel: (model) =>
+    set({ executionModel: model ? stripUiFromModel(model) : undefined }),
   setActorPosition: (id, position) =>
     set((state) => ({
       ui: {
         ...state.ui,
         actorPositions: { ...(state.ui.actorPositions ?? {}), [id]: position },
+      },
+    })),
+  setActorPositions: (positions) =>
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        actorPositions: { ...(state.ui.actorPositions ?? {}), ...positions },
       },
     })),
   selectActor: (id) =>
@@ -251,6 +262,7 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
         jsonText,
         diagnostics: [],
         execution: undefined,
+        executionModel: undefined,
         ui: { actorPositions: defaultActorPositions },
       };
     }),
