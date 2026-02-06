@@ -14,14 +14,14 @@ export default function VisualizationPanel() {
 
   return (
     <section className="flex h-full min-h-0 flex-1 flex-col gap-4 px-4 pb-4">
-      <div className="flex items-center justify-between">
+      <div className="flex shrink-0 items-center justify-between">
         <h2 className="text-lg font-semibold text-[color:var(--foreground)]">
           Results
         </h2>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto">
-        <div className="min-h-0">
-          <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
+      <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-auto pr-2">
+        <div className="min-h-0 shrink-0">
+          <h3 className="mb-3 text-sm font-semibold text-[color:var(--muted-strong)]">
             PolyGraph
           </h3>
           {hasExecutionModel && renderModel ? (
@@ -32,14 +32,14 @@ export default function VisualizationPanel() {
             </div>
           )}
         </div>
-        <div className="min-h-0">
-          <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
+        <div className="min-h-0 shrink-0">
+          <h3 className="mb-3 text-sm font-semibold text-[color:var(--muted-strong)]">
             Schedule
           </h3>
           <ScheduleView execution={execution} model={renderModel ?? model} />
         </div>
-        <div className="min-h-0">
-          <h3 className="mb-2 text-sm font-semibold text-[color:var(--muted-strong)]">
+        <div className="min-h-0 shrink-0">
+          <h3 className="mb-3 text-sm font-semibold text-[color:var(--muted-strong)]">
             Token Trace
           </h3>
           <TokenTraceView execution={execution} model={renderModel ?? model} />

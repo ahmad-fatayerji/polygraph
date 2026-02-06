@@ -22,7 +22,7 @@ export default function TokenTraceView({
   const channelMap = new Map(model.channels.map((channel) => [channel.id, channel]));
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-2">
       {tokenTrace.map((trace) => {
         const channel = channelMap.get(trace.channelId);
         return (
@@ -30,12 +30,12 @@ export default function TokenTraceView({
             key={trace.channelId}
             className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] px-4 py-3"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
                 {trace.channelId}
               </p>
               {channel && (
-                <span className="text-[11px] text-[color:var(--muted)]">
+                <span className="shrink-0 text-[11px] text-[color:var(--muted)]">
                   {channel.src} {" -> "} {channel.dst}
                 </span>
               )}

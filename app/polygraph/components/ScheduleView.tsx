@@ -21,17 +21,17 @@ export default function ScheduleView({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-2">
       {schedule.map((entry) => (
         <div
           key={`tick-${entry.tick}`}
           className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] px-4 py-3"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
               Tick {entry.tick}
             </p>
-            <span className="text-[11px] text-[color:var(--muted)]">
+            <span className="shrink-0 text-[11px] text-[color:var(--muted)]">
               {entry.fires.length} fires
             </span>
           </div>
