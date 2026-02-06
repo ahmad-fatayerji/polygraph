@@ -84,15 +84,6 @@ const parseChannels = (model: PolyGraphModel) => {
         hint: 'Check the "src" and "dst" fields. Make sure each references an actor id defined in the actors list.',
       });
     }
-    if (channel.src === channel.dst) {
-      diagnostics.push({
-        id: "E_TOPOLOGY_INVALID",
-        severity: "error",
-        message: `Channel "${channel.id}" has the same actor "${channel.src}" as both source and destination. Self-loops are not allowed.`,
-        where: { channelId: channel.id },
-        hint: 'A channel must connect two different actors. Change either "src" or "dst" to a different actor.',
-      });
-    }
 
     const parsed = parsedChannels[idx];
     const status = parseStatus[idx];
@@ -178,22 +169,46 @@ const validateActors = (model: PolyGraphModel) => {
     }
 
     if (actor.timed) {
-      if (actor.freq === undefined || !Number.isFinite(actor.freq) || actor.freq <= 0) {
+      const hasFreq = actor.freq !== undefined && Number.isFinite(actor.freq) && actor.freq > 0;
+      const hasPeriod = actor.period !== undefined && Number.isFinite(actor.period) && actor.period > 0;
+
+      if (!hasFreq && !hasPeriod) {
         diagnostics.push({
           id: "E_TOPOLOGY_INVALID",
           severity: "error",
-          message: `Timed actor "${actor.id}" is missing a valid frequency. Timed actors fire at regular intervals and need a positive frequency (in Hz) to define their rate.`,
+          message: `Timed actor "${actor.id}" is missing a valid frequency or period. Timed actors fire at regular intervals and need either "freq" (in Hz) or "period" (in ms).`,
           where: { actorId: actor.id, field: "freq" },
-          hint: 'Set "freq" to a positive number, e.g. 100 for 100 Hz.',
+          hint: 'Set either "freq" to a positive number (e.g. 100 for 100 Hz) or "period" to a positive number (e.g. 10 for 10 ms).',
         });
       }
+
+      if (actor.freq !== undefined && !Number.isFinite(actor.freq) && actor.freq !== undefined) {
+        diagnostics.push({
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: `Timed actor "${actor.id}" has an invalid frequency value. Frequency must be a positive number.`,
+          where: { actorId: actor.id, field: "freq" },
+          hint: 'Set "freq" to a positive number representing cycles per second, e.g. 100 for 100 Hz.',
+        });
+      }
+
+      if (actor.period !== undefined && !Number.isFinite(actor.period) && actor.period !== undefined) {
+        diagnostics.push({
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: `Timed actor "${actor.id}" has an invalid period value. Period must be a positive number in milliseconds.`,
+          where: { actorId: actor.id, field: "period" },
+          hint: 'Set "period" to a positive number in milliseconds, e.g. 10 for 10 ms.',
+        });
+      }
+
       if (actor.phase !== undefined && actor.phase < 0) {
         diagnostics.push({
           id: "E_TOPOLOGY_INVALID",
           severity: "error",
-          message: `Timed actor "${actor.id}" has a negative phase offset (${actor.phase}). The phase determines when the actor first fires and cannot be negative.`,
+          message: `Timed actor "${actor.id}" has a negative phase offset (${actor.phase} ms). The phase determines when the actor first fires and cannot be negative.`,
           where: { actorId: actor.id, field: "phase" },
-          hint: 'Set "phase" to 0 (fire immediately) or a positive value representing the initial delay.',
+          hint: 'Set "phase" to 0 (fire immediately) or a positive value in milliseconds representing the initial delay, e.g. 20 for 20 ms.',
         });
       }
     }

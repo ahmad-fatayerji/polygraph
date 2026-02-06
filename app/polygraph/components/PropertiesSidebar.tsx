@@ -14,8 +14,12 @@ const Field = ({ label, value }: { label: string; value: string }) => (
 export default function PropertiesSidebar() {
   const model = usePolygraphStore((state) => state.model);
   const setModel = usePolygraphStore((state) => state.setModel);
-  const selectedActorId = usePolygraphStore((state) => state.ui.selectedActorId);
-  const selectedChannelId = usePolygraphStore((state) => state.ui.selectedChannelId);
+  const selectedActorId = usePolygraphStore(
+    (state) => state.ui.selectedActorId,
+  );
+  const selectedChannelId = usePolygraphStore(
+    (state) => state.ui.selectedChannelId,
+  );
 
   const actor = model.actors.find((item) => item.id === selectedActorId);
   const channel = model.channels.find((item) => item.id === selectedChannelId);
@@ -49,7 +53,9 @@ export default function PropertiesSidebar() {
             value={actor.label ?? ""}
             onChange={(event) => {
               const nextActors = model.actors.map((item) =>
-                item.id === actor.id ? { ...item, label: event.target.value } : item
+                item.id === actor.id
+                  ? { ...item, label: event.target.value }
+                  : item,
               );
               setModel({ ...model, actors: nextActors }, "visual");
             }}
@@ -66,10 +72,11 @@ export default function PropertiesSidebar() {
                   ? {
                       ...item,
                       timed,
-                      freq: timed ? item.freq ?? 1 : undefined,
-                      phase: timed ? item.phase ?? 0 : undefined,
+                      freq: timed ? (item.freq ?? 1) : undefined,
+                      period: undefined,
+                      phase: timed ? (item.phase ?? 0) : undefined,
                     }
-                  : item
+                  : item,
               );
               setModel({ ...model, actors: nextActors }, "visual");
             }}
@@ -77,28 +84,56 @@ export default function PropertiesSidebar() {
           Timed actor
         </label>
         {actor.timed && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                  Freq (Hz)
+                </span>
+                <input
+                  type="number"
+                  className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
+                  value={actor.freq ?? ""}
+                  placeholder="e.g., 100"
+                  onChange={(event) => {
+                    const freq = event.target.value
+                      ? Number(event.target.value)
+                      : undefined;
+                    const nextActors = model.actors.map((item) =>
+                      item.id === actor.id
+                        ? { ...item, freq, period: undefined }
+                        : item,
+                    );
+                    setModel({ ...model, actors: nextActors }, "visual");
+                  }}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                  Period (ms)
+                </span>
+                <input
+                  type="number"
+                  className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
+                  value={actor.period ?? ""}
+                  placeholder="e.g., 10"
+                  onChange={(event) => {
+                    const period = event.target.value
+                      ? Number(event.target.value)
+                      : undefined;
+                    const nextActors = model.actors.map((item) =>
+                      item.id === actor.id
+                        ? { ...item, period, freq: undefined }
+                        : item,
+                    );
+                    setModel({ ...model, actors: nextActors }, "visual");
+                  }}
+                />
+              </label>
+            </div>
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                Freq (Hz)
-              </span>
-              <input
-                type="number"
-                className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
-                value={actor.freq ?? 1}
-                onChange={(event) => {
-                  const nextActors = model.actors.map((item) =>
-                    item.id === actor.id
-                      ? { ...item, freq: Number(event.target.value) }
-                      : item
-                  );
-                  setModel({ ...model, actors: nextActors }, "visual");
-                }}
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                Phase
+                Phase (ms)
               </span>
               <input
                 type="number"
@@ -108,7 +143,7 @@ export default function PropertiesSidebar() {
                   const nextActors = model.actors.map((item) =>
                     item.id === actor.id
                       ? { ...item, phase: Number(event.target.value) }
-                      : item
+                      : item,
                   );
                   setModel({ ...model, actors: nextActors }, "visual");
                 }}
@@ -126,7 +161,9 @@ export default function PropertiesSidebar() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
           Channel
         </p>
-        <h3 className="text-lg font-semibold text-[color:var(--foreground)]">{channel?.id}</h3>
+        <h3 className="text-lg font-semibold text-[color:var(--foreground)]">
+          {channel?.id}
+        </h3>
       </div>
       {channel && (
         <>
@@ -141,7 +178,9 @@ export default function PropertiesSidebar() {
               value={channel.rateSrc}
               onChange={(event) => {
                 const nextChannels = model.channels.map((item) =>
-                  item.id === channel.id ? { ...item, rateSrc: event.target.value } : item
+                  item.id === channel.id
+                    ? { ...item, rateSrc: event.target.value }
+                    : item,
                 );
                 setModel({ ...model, channels: nextChannels }, "visual");
               }}
@@ -156,7 +195,9 @@ export default function PropertiesSidebar() {
               value={channel.rateDst}
               onChange={(event) => {
                 const nextChannels = model.channels.map((item) =>
-                  item.id === channel.id ? { ...item, rateDst: event.target.value } : item
+                  item.id === channel.id
+                    ? { ...item, rateDst: event.target.value }
+                    : item,
                 );
                 setModel({ ...model, channels: nextChannels }, "visual");
               }}
@@ -171,7 +212,9 @@ export default function PropertiesSidebar() {
               value={channel.init}
               onChange={(event) => {
                 const nextChannels = model.channels.map((item) =>
-                  item.id === channel.id ? { ...item, init: event.target.value } : item
+                  item.id === channel.id
+                    ? { ...item, init: event.target.value }
+                    : item,
                 );
                 setModel({ ...model, channels: nextChannels }, "visual");
               }}

@@ -40,8 +40,9 @@ export type PolyGraphModel = {
     id: string;
     label?: string;
     timed: boolean;
-    freq?: number;
-    phase?: number;
+    freq?: number; // Hz (optional if period is provided)
+    period?: number; // milliseconds (optional if freq is provided)
+    phase?: number; // milliseconds, optional
     ui?: { x: number; y: number };
   }>;
   channels: Array<{

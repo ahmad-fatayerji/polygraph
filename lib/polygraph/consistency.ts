@@ -236,47 +236,69 @@ export const computeTimingInfo = (
   const actorPhases = new Map<string, Rational>();
 
   timedActors.forEach((actor) => {
-    if (actor.freq === undefined) {
-      diagnostics.push({
-        id: "E_TOPOLOGY_INVALID",
-        severity: "error",
-        message: `Timed actor "${actor.id}" is missing a frequency value. Without it, the system cannot compute when this actor should fire.`,
-        where: { actorId: actor.id, field: "freq" },
-        hint: 'Set the "freq" property to a positive number (in Hz).',
-      });
-      return;
+    // Extract frequency in Hz (either from freq or converted from period)
+    let freq: Rational | null = null;
+
+    if (actor.freq !== undefined) {
+      freq = parseNumberToRational(actor.freq);
+    } else if (actor.period !== undefined) {
+      // Convert period from milliseconds to seconds, then to frequency
+      // period is in ms, so period_seconds = period / 1000
+      // freq = 1000 / period_ms
+      const periodMs = parseNumberToRational(actor.period);
+      if (periodMs && compare(periodMs, rationalZero) > 0) {
+        freq = div({ n: 1000n, d: 1n }, periodMs);
+      }
     }
-    const freq = parseNumberToRational(actor.freq);
-    if (!freq || compare(freq, rationalZero) <= 0) {
+
+    if (!freq) {
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: `Timed actor "${actor.id}" has an invalid frequency (${actor.freq}). Frequency must be a positive number representing cycles per second (Hz).`,
+        message: `Timed actor "${actor.id}" is missing a valid frequency or period. Set either "freq" (in Hz) or "period" (in milliseconds).`,
         where: { actorId: actor.id, field: "freq" },
-        hint: 'Use a positive value like 50 or 100.',
-      });
-      return;
-    }
-    const period = div(rationalOne, freq);
-    const phaseValue = actor.phase ?? 0;
-    const phaseRat = parseNumberToRational(phaseValue);
-    if (!phaseRat || compare(phaseRat, rationalZero) < 0) {
-      diagnostics.push({
-        id: "E_TOPOLOGY_INVALID",
-        severity: "error",
-        message: `Timed actor "${actor.id}" has an invalid phase offset (${actor.phase}). Phase must be zero or a positive number.`,
-        where: { actorId: actor.id, field: "phase" },
-        hint: 'Set "phase" to 0 or omit it to use the default (no delay).',
+        hint: 'Set either "freq" to a positive number (e.g. 100 for 100 Hz) or "period" to a positive number (e.g. 10 for 10 ms).',
       });
       return;
     }
 
-    const normalizedPhase = modRational(phaseRat, period);
+    if (compare(freq, rationalZero) <= 0) {
+      const fieldName = actor.freq !== undefined ? "freq" : "period";
+      const fieldValue = actor.freq ?? actor.period;
+      const unitLabel = actor.freq !== undefined ? "Hz" : "ms";
+      diagnostics.push({
+        id: "E_TOPOLOGY_INVALID",
+        severity: "error",
+        message: `Timed actor "${actor.id}" has an invalid ${fieldName} (${fieldValue} ${unitLabel}). It must be a positive number.`,
+        where: { actorId: actor.id, field: fieldName },
+        hint: `Use a positive value like ${actor.freq !== undefined ? "50 or 100" : "10 or 25"}.`,
+      });
+      return;
+    }
+
+    const period = div(rationalOne, freq);
+    // Phase is in milliseconds; convert to seconds
+    const phaseMs = actor.phase ?? 0;
+    const phaseSeconds = div(parseNumberToRational(phaseMs) || rationalZero, { n: 1000n, d: 1n });
+
+    if (compare(phaseSeconds, rationalZero) < 0) {
+      diagnostics.push({
+        id: "E_TOPOLOGY_INVALID",
+        severity: "error",
+        message: `Timed actor "${actor.id}" has a negative phase offset (${phaseMs} ms). Phase must be zero or a positive number.`,
+        where: { actorId: actor.id, field: "phase" },
+        hint: 'Set "phase" to 0 or a positive number in milliseconds, e.g. 20.',
+      });
+      return;
+    }
+
+    const normalizedPhase = modRational(phaseSeconds, period);
     periods.push(period);
     if (!isZero(normalizedPhase)) phases.push(normalizedPhase);
     actorPeriods.set(actor.id, period);
     actorPhases.set(actor.id, normalizedPhase);
   });
+
 
   if (diagnostics.some((diag) => diag.severity === "error")) return undefined;
 

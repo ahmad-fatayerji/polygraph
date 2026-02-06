@@ -16,10 +16,18 @@ import { usePolygraphStore } from "../store";
 import type { PolyGraphModel } from "@/lib/polygraph/types";
 import { defaultPosition } from "../graphLayout";
 
-export default function PolygraphGraphView({ model }: { model: PolyGraphModel }) {
+export default function PolygraphGraphView({
+  model,
+}: {
+  model: PolyGraphModel;
+}) {
   const actorPositions = usePolygraphStore((state) => state.ui.actorPositions);
-  const selectedActorId = usePolygraphStore((state) => state.ui.selectedActorId);
-  const selectedChannelId = usePolygraphStore((state) => state.ui.selectedChannelId);
+  const selectedActorId = usePolygraphStore(
+    (state) => state.ui.selectedActorId,
+  );
+  const selectedChannelId = usePolygraphStore(
+    (state) => state.ui.selectedChannelId,
+  );
   const flowRef = useRef<ReactFlowInstance | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -35,7 +43,11 @@ export default function PolygraphGraphView({ model }: { model: PolyGraphModel })
             </span>
             <span className="text-[11px] text-[color:var(--muted)]">
               {actor.timed
-                ? `Timed - ${actor.freq ?? "?"} Hz`
+                ? actor.freq !== undefined
+                  ? `Timed - ${actor.freq} Hz`
+                  : actor.period !== undefined
+                    ? `Timed - ${actor.period} ms`
+                    : "Timed - ?"
                 : "Untimed"}
             </span>
           </div>
@@ -69,10 +81,16 @@ export default function PolygraphGraphView({ model }: { model: PolyGraphModel })
       label: `${channel.rateSrc} -> ${channel.rateDst}`,
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: channel.id === selectedChannelId ? "var(--edge-active)" : "var(--edge)",
+        color:
+          channel.id === selectedChannelId
+            ? "var(--edge-active)"
+            : "var(--edge)",
       },
       style: {
-        stroke: channel.id === selectedChannelId ? "var(--edge-active)" : "var(--edge)",
+        stroke:
+          channel.id === selectedChannelId
+            ? "var(--edge-active)"
+            : "var(--edge)",
         strokeWidth: channel.id === selectedChannelId ? 2.2 : 1.4,
       },
       labelStyle: {
@@ -96,7 +114,7 @@ export default function PolygraphGraphView({ model }: { model: PolyGraphModel })
     async (format: "svg" | "png" | "jpg") => {
       if (isExporting) return;
       const viewport = containerRef.current?.querySelector(
-        ".react-flow__viewport"
+        ".react-flow__viewport",
       ) as HTMLElement | null;
       if (!viewport) return;
       const nodesForBounds = flowRef.current?.getNodes() ?? nodes;
@@ -106,11 +124,11 @@ export default function PolygraphGraphView({ model }: { model: PolyGraphModel })
       const fallbackBounds = viewport.getBoundingClientRect();
       const width = Math.max(
         Math.ceil(bounds.width + padding * 2),
-        Math.ceil(fallbackBounds.width)
+        Math.ceil(fallbackBounds.width),
       );
       const height = Math.max(
         Math.ceil(bounds.height + padding * 2),
-        Math.ceil(fallbackBounds.height)
+        Math.ceil(fallbackBounds.height),
       );
       const safeBounds =
         bounds.width > 0 && bounds.height > 0
@@ -127,7 +145,7 @@ export default function PolygraphGraphView({ model }: { model: PolyGraphModel })
         height,
         0.2,
         2,
-        0.1
+        0.1,
       );
       const background =
         getComputedStyle(document.documentElement)
@@ -154,7 +172,9 @@ export default function PolygraphGraphView({ model }: { model: PolyGraphModel })
             : format === "png"
               ? await toPng(viewport, commonOptions)
               : await toJpeg(viewport, { ...commonOptions, quality: 0.95 });
-        const fileBase = model.meta?.name?.trim().replace(/[^a-z0-9\-_]+/gi, "-") || "polygraph";
+        const fileBase =
+          model.meta?.name?.trim().replace(/[^a-z0-9\-_]+/gi, "-") ||
+          "polygraph";
         const link = document.createElement("a");
         link.download = `${fileBase}.${format}`;
         link.href = dataUrl;
@@ -163,7 +183,7 @@ export default function PolygraphGraphView({ model }: { model: PolyGraphModel })
         setIsExporting(false);
       }
     },
-    [isExporting, model.meta?.name, nodes]
+    [isExporting, model.meta?.name, nodes],
   );
 
   return (

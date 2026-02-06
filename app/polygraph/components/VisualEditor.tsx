@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -32,7 +39,8 @@ const nextId = (prefix: string, existing: string[]) => {
 };
 
 const arraysEqual = (left: string[], right: string[]) =>
-  left.length === right.length && left.every((value, index) => value === right[index]);
+  left.length === right.length &&
+  left.every((value, index) => value === right[index]);
 
 const cloneValue = <T,>(value: T): T => {
   if (typeof structuredClone === "function") {
@@ -72,12 +80,18 @@ type HistoryEntry = {
 const MAX_HISTORY = 100;
 const HISTORY_KEY = "polygraph:visualHistory";
 
-const readStoredHistory = (): { undo: HistoryEntry[]; redo: HistoryEntry[] } | null => {
+const readStoredHistory = (): {
+  undo: HistoryEntry[];
+  redo: HistoryEntry[];
+} | null => {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(HISTORY_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { undo?: HistoryEntry[]; redo?: HistoryEntry[] };
+    const parsed = JSON.parse(raw) as {
+      undo?: HistoryEntry[];
+      redo?: HistoryEntry[];
+    };
     return {
       undo: Array.isArray(parsed.undo) ? parsed.undo : [],
       redo: Array.isArray(parsed.redo) ? parsed.redo : [],
@@ -87,7 +101,10 @@ const readStoredHistory = (): { undo: HistoryEntry[]; redo: HistoryEntry[] } | n
   }
 };
 
-const writeStoredHistory = (history: { undo: HistoryEntry[]; redo: HistoryEntry[] }) => {
+const writeStoredHistory = (history: {
+  undo: HistoryEntry[];
+  redo: HistoryEntry[];
+}) => {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
@@ -100,12 +117,18 @@ function VisualEditorInner() {
   const model = usePolygraphStore((state) => state.model);
   const setModel = usePolygraphStore((state) => state.setModel);
   const setActorPosition = usePolygraphStore((state) => state.setActorPosition);
-  const setActorPositions = usePolygraphStore((state) => state.setActorPositions);
+  const setActorPositions = usePolygraphStore(
+    (state) => state.setActorPositions,
+  );
   const selectActor = usePolygraphStore((state) => state.selectActor);
   const selectChannel = usePolygraphStore((state) => state.selectChannel);
   const actorPositions = usePolygraphStore((state) => state.ui.actorPositions);
-  const selectedActorId = usePolygraphStore((state) => state.ui.selectedActorId);
-  const selectedChannelId = usePolygraphStore((state) => state.ui.selectedChannelId);
+  const selectedActorId = usePolygraphStore(
+    (state) => state.ui.selectedActorId,
+  );
+  const selectedChannelId = usePolygraphStore(
+    (state) => state.ui.selectedChannelId,
+  );
 
   const store = useStoreApi();
 
@@ -118,7 +141,9 @@ function VisualEditorInner() {
   const selectionSuppressionFrameRef = useRef<number | null>(null);
   const undoStackRef = useRef<HistoryEntry[]>([]);
   const redoStackRef = useRef<HistoryEntry[]>([]);
-  const dragStartPositionsRef = useRef<Record<string, ActorPosition> | null>(null);
+  const dragStartPositionsRef = useRef<Record<string, ActorPosition> | null>(
+    null,
+  );
   const dragModeRef = useRef<"node" | "selection" | null>(null);
   const keydownStateRef = useRef<{
     addActorAt: (position: { x: number; y: number }) => void;
@@ -134,7 +159,7 @@ function VisualEditorInner() {
     selectedChannelId?: string;
     selectActor: (id?: string) => void;
     setContextMenu: (
-      value: ContextMenuState | ((prev: ContextMenuState) => ContextMenuState)
+      value: ContextMenuState | ((prev: ContextMenuState) => ContextMenuState),
     ) => void;
   } | null>(null);
 
@@ -229,7 +254,7 @@ function VisualEditorInner() {
       selectedActorId,
       selectedChannelId,
     }),
-    [actorPositions, model, selectedActorId, selectedChannelId]
+    [actorPositions, model, selectedActorId, selectedChannelId],
   );
 
   const pushHistory = useCallback(() => {
@@ -246,8 +271,12 @@ function VisualEditorInner() {
 
   const applyHistoryEntry = useCallback(
     (entry: HistoryEntry) => {
-      selectedNodeIdsRef.current = entry.selectedActorId ? [entry.selectedActorId] : [];
-      selectedEdgeIdsRef.current = entry.selectedChannelId ? [entry.selectedChannelId] : [];
+      selectedNodeIdsRef.current = entry.selectedActorId
+        ? [entry.selectedActorId]
+        : [];
+      selectedEdgeIdsRef.current = entry.selectedChannelId
+        ? [entry.selectedChannelId]
+        : [];
       setModel(entry.model, "visual");
       if (entry.actorPositions) {
         setActorPositions(entry.actorPositions);
@@ -260,7 +289,7 @@ function VisualEditorInner() {
         selectActor();
       }
     },
-    [selectActor, selectChannel, setActorPositions, setModel]
+    [selectActor, selectChannel, setActorPositions, setModel],
   );
 
   const undo = useCallback(() => {
@@ -290,7 +319,7 @@ function VisualEditorInner() {
       pushHistory();
       const id = nextId(
         "a",
-        model.actors.map((actor) => actor.id)
+        model.actors.map((actor) => actor.id),
       );
       const nextActor = {
         id,
@@ -301,7 +330,7 @@ function VisualEditorInner() {
       setModel({ ...model, actors: [...model.actors, nextActor] }, "visual");
       selectActor(id);
     },
-    [model, pushHistory, selectActor, setActorPosition, setModel]
+    [model, pushHistory, selectActor, setActorPosition, setModel],
   );
 
   const clampToBounds = useCallback((x: number, y: number) => {
@@ -328,7 +357,7 @@ function VisualEditorInner() {
       payload:
         | { type: "node"; nodeId: string }
         | { type: "edge"; edgeId: string }
-        | { type: "pane"; flowPosition: { x: number; y: number } }
+        | { type: "pane"; flowPosition: { x: number; y: number } },
     ) => {
       event.preventDefault();
       event.stopPropagation();
@@ -358,21 +387,20 @@ function VisualEditorInner() {
                 x,
                 y,
                 flowPosition: payload.flowPosition,
-              }
+              },
         );
       }
     },
-    [clampToBounds]
+    [clampToBounds],
   );
 
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      if (connection.source === connection.target) return;
       pushHistory();
       const id = nextId(
         "c",
-        model.channels.map((channel) => channel.id)
+        model.channels.map((channel) => channel.id),
       );
       const nextChannel = {
         id,
@@ -382,20 +410,25 @@ function VisualEditorInner() {
         rateDst: "-1",
         init: "0",
       };
-      setModel({ ...model, channels: [...model.channels, nextChannel] }, "visual");
+      setModel(
+        { ...model, channels: [...model.channels, nextChannel] },
+        "visual",
+      );
       selectChannel(id);
     },
-    [model, pushHistory, selectChannel, setModel]
+    [model, pushHistory, selectChannel, setModel],
   );
 
   const removeChannels = useCallback(
     (ids: string[]) => {
       if (ids.length == 0) return;
       pushHistory();
-      const nextChannels = model.channels.filter((channel) => !ids.includes(channel.id));
+      const nextChannels = model.channels.filter(
+        (channel) => !ids.includes(channel.id),
+      );
       setModel({ ...model, channels: nextChannels }, "visual");
     },
-    [model, pushHistory, setModel]
+    [model, pushHistory, setModel],
   );
 
   const removeActors = useCallback(
@@ -405,14 +438,20 @@ function VisualEditorInner() {
       const idSet = new Set(ids);
       const nextActors = model.actors.filter((actor) => !idSet.has(actor.id));
       const nextChannels = model.channels.filter(
-        (channel) => !idSet.has(channel.src) && !idSet.has(channel.dst)
+        (channel) => !idSet.has(channel.src) && !idSet.has(channel.dst),
       );
-      setModel({ ...model, actors: nextActors, channels: nextChannels }, "visual");
+      setModel(
+        { ...model, actors: nextActors, channels: nextChannels },
+        "visual",
+      );
     },
-    [model, pushHistory, setModel]
+    [model, pushHistory, setModel],
   );
 
-  const removeActor = useCallback((id: string) => removeActors([id]), [removeActors]);
+  const removeActor = useCallback(
+    (id: string) => removeActors([id]),
+    [removeActors],
+  );
 
   const suppressSelectionChange = useCallback(() => {
     suppressSelectionChangeRef.current = true;
@@ -437,16 +476,16 @@ function VisualEditorInner() {
         prev.map((node) => {
           const selected = nextNodeIds.includes(node.id);
           return node.selected === selected ? node : { ...node, selected };
-        })
+        }),
       );
       setEdges((prev) =>
         prev.map((edge) => {
           const selected = nextEdgeIds.includes(edge.id);
           return edge.selected === selected ? edge : { ...edge, selected };
-        })
+        }),
       );
     },
-    [setEdges, setNodes, suppressSelectionChange]
+    [setEdges, setNodes, suppressSelectionChange],
   );
 
   const clearSelectionState = useCallback(() => {
@@ -459,7 +498,9 @@ function VisualEditorInner() {
       .filter((node) => node.selected)
       .map((node) => node.id);
     const selectedIds =
-      selectedIdsFromNodes.length > 0 ? selectedIdsFromNodes : selectedNodeIdsRef.current;
+      selectedIdsFromNodes.length > 0
+        ? selectedIdsFromNodes
+        : selectedNodeIdsRef.current;
     if (selectedIds.length === 0) return;
     pushHistory();
     const idMap = new Map<string, string>();
@@ -478,21 +519,28 @@ function VisualEditorInner() {
       if (!actor) return;
       const id = nextId(
         "a",
-        nextActors.map((entry) => entry.id)
+        nextActors.map((entry) => entry.id),
       );
       idMap.set(actorId, id);
       newSelectedIds.push(id);
       const nextActor = {
         ...actor,
         id,
-        label: actor.label ? `${actor.label} Copy` : `${actor.id.toUpperCase()} Copy`,
+        label: actor.label
+          ? `${actor.label} Copy`
+          : `${actor.id.toUpperCase()} Copy`,
       };
       nextActors.push(nextActor);
 
-      const fallbackIndex = model.actors.findIndex((entry) => entry.id === actorId);
-      const fallbackPosition = fallbackIndex >= 0 ? defaultPosition(fallbackIndex) : undefined;
+      const fallbackIndex = model.actors.findIndex(
+        (entry) => entry.id === actorId,
+      );
+      const fallbackPosition =
+        fallbackIndex >= 0 ? defaultPosition(fallbackIndex) : undefined;
       const position =
-        positionLookup.get(actorId) ?? actorPositions?.[actorId] ?? fallbackPosition;
+        positionLookup.get(actorId) ??
+        actorPositions?.[actorId] ??
+        fallbackPosition;
       if (position) {
         newActorPositions[id] = { x: position.x + 32, y: position.y + 32 };
       }
@@ -504,7 +552,7 @@ function VisualEditorInner() {
       if (!nextSrc || !nextDst) return;
       const id = nextId(
         "c",
-        nextChannels.map((entry) => entry.id)
+        nextChannels.map((entry) => entry.id),
       );
       nextChannels.push({
         ...channel,
@@ -517,22 +565,25 @@ function VisualEditorInner() {
     if (Object.keys(newActorPositions).length > 0) {
       setActorPositions(newActorPositions);
     }
-    
+
     // Clear ReactFlow's internal selection state to remove the blue highlight box
     const { unselectNodesAndEdges, resetSelectedElements } = store.getState();
-    if (typeof unselectNodesAndEdges === 'function') {
+    if (typeof unselectNodesAndEdges === "function") {
       unselectNodesAndEdges();
     }
-    if (typeof resetSelectedElements === 'function') {
+    if (typeof resetSelectedElements === "function") {
       resetSelectedElements();
     }
-    
+
     // Also clear our tracked selection refs
     selectedNodeIdsRef.current = [];
     selectedEdgeIdsRef.current = [];
-    
-    setModel({ ...model, actors: nextActors, channels: nextChannels }, "visual");
-    
+
+    setModel(
+      { ...model, actors: nextActors, channels: nextChannels },
+      "visual",
+    );
+
     // After a frame, select the new duplicated nodes (without the selection box)
     requestAnimationFrame(() => {
       applySelectionState(newSelectedIds, []);
@@ -576,21 +627,26 @@ function VisualEditorInner() {
   const ensureGroupSelection = useCallback(
     (nodeId: string) => {
       const desiredNodeIds = selectedNodeIdsRef.current;
-      if (desiredNodeIds.length <= 1 || !desiredNodeIds.includes(nodeId)) return;
-      const currentSelectedIds = nodes.filter((node) => node.selected).map((node) => node.id);
+      if (desiredNodeIds.length <= 1 || !desiredNodeIds.includes(nodeId))
+        return;
+      const currentSelectedIds = nodes
+        .filter((node) => node.selected)
+        .map((node) => node.id);
       if (currentSelectedIds.length === 1 && currentSelectedIds[0] === nodeId) {
         applySelectionState(desiredNodeIds, selectedEdgeIdsRef.current);
       }
     },
-    [applySelectionState, nodes]
+    [applySelectionState, nodes],
   );
 
   useEffect(() => {
     if (!selectedActorId) return;
     setNodes((prev) =>
       prev.map((node) =>
-        node.id === selectedActorId && !node.selected ? { ...node, selected: true } : node
-      )
+        node.id === selectedActorId && !node.selected
+          ? { ...node, selected: true }
+          : node,
+      ),
     );
   }, [selectedActorId, setNodes]);
 
@@ -598,8 +654,10 @@ function VisualEditorInner() {
     if (!selectedChannelId) return;
     setEdges((prev) =>
       prev.map((edge) =>
-        edge.id === selectedChannelId && !edge.selected ? { ...edge, selected: true } : edge
-      )
+        edge.id === selectedChannelId && !edge.selected
+          ? { ...edge, selected: true }
+          : edge,
+      ),
     );
   }, [selectedChannelId, setEdges]);
 
@@ -768,11 +826,15 @@ function VisualEditorInner() {
           onEdgesChange={onEdgesChange}
           selectionOnDrag
           selectionMode={SelectionMode.Partial}
-          onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
+          onSelectionChange={({
+            nodes: selectedNodes,
+            edges: selectedEdges,
+          }) => {
             if (suppressSelectionChangeRef.current) return;
             const nextNodeIds = selectedNodes.map((node) => node.id).sort();
             const nextEdgeIds = selectedEdges.map((edge) => edge.id).sort();
-            const hasMultipleSelection = nextNodeIds.length + nextEdgeIds.length > 1;
+            const hasMultipleSelection =
+              nextNodeIds.length + nextEdgeIds.length > 1;
 
             if (!arraysEqual(selectedNodeIdsRef.current, nextNodeIds)) {
               selectedNodeIdsRef.current = nextNodeIds;
@@ -793,7 +855,10 @@ function VisualEditorInner() {
               }
               return;
             }
-            if (hasMultipleSelection && (selectedActorId || selectedChannelId)) {
+            if (
+              hasMultipleSelection &&
+              (selectedActorId || selectedChannelId)
+            ) {
               selectActor();
               return;
             }
@@ -803,7 +868,9 @@ function VisualEditorInner() {
               }
             }
           }}
-          onEdgesDelete={(edgesToDelete) => removeChannels(edgesToDelete.map((edge) => edge.id))}
+          onEdgesDelete={(edgesToDelete) =>
+            removeChannels(edgesToDelete.map((edge) => edge.id))
+          }
           onEdgeDoubleClick={(_, edge) => removeChannels([edge.id])}
           onConnect={handleConnect}
           onInit={(instance) => {
@@ -816,14 +883,20 @@ function VisualEditorInner() {
           onPaneContextMenu={(event) => {
             const instance = flowRef.current;
             const position = instance
-              ? instance.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+              ? instance.screenToFlowPosition({
+                  x: event.clientX,
+                  y: event.clientY,
+                })
               : defaultPosition(model.actors.length);
             openContextMenu(event, { type: "pane", flowPosition: position });
           }}
           onNodeClick={(event, node) => {
             if (isHandleTarget(event)) return;
             if (contextMenu) setContextMenu(null);
-            if (selectedNodeIdsRef.current.length > 1 && selectedNodeIdsRef.current.includes(node.id)) {
+            if (
+              selectedNodeIdsRef.current.length > 1 &&
+              selectedNodeIdsRef.current.includes(node.id)
+            ) {
               return;
             }
             selectActor(node.id);
@@ -833,8 +906,13 @@ function VisualEditorInner() {
             ensureGroupSelection(node.id);
             dragModeRef.current = "node";
             // Capture positions of ALL selected nodes, not just the node being dragged
-            const selectedNodes = nodes.filter((n) => n.selected || selectedNodeIdsRef.current.includes(n.id));
-            if (selectedNodes.length > 1 && selectedNodes.some((n) => n.id === node.id)) {
+            const selectedNodes = nodes.filter(
+              (n) => n.selected || selectedNodeIdsRef.current.includes(n.id),
+            );
+            if (
+              selectedNodes.length > 1 &&
+              selectedNodes.some((n) => n.id === node.id)
+            ) {
               const positions: Record<string, ActorPosition> = {};
               selectedNodes.forEach((n) => {
                 positions[n.id] = getNodePosition(n);
@@ -870,8 +948,9 @@ function VisualEditorInner() {
             if (!node) return;
             const startPositions = dragStartPositionsRef.current;
             const selectedNodeIds = Object.keys(startPositions ?? {});
-            const isMultiNodeDrag = dragModeRef.current === "node" && selectedNodeIds.length > 1;
-            
+            const isMultiNodeDrag =
+              dragModeRef.current === "node" && selectedNodeIds.length > 1;
+
             if (dragModeRef.current === "node") {
               const start = startPositions?.[node.id];
               const next = getNodePosition(node);
@@ -881,11 +960,13 @@ function VisualEditorInner() {
               dragStartPositionsRef.current = null;
               dragModeRef.current = null;
             }
-            
+
             if (isMultiNodeDrag) {
               // Update positions for ALL selected nodes that were dragged together
               const positionsToUpdate: Record<string, ActorPosition> = {};
-              const selectedNodes = nodes.filter((n) => selectedNodeIds.includes(n.id));
+              const selectedNodes = nodes.filter((n) =>
+                selectedNodeIds.includes(n.id),
+              );
               selectedNodes.forEach((n) => {
                 positionsToUpdate[n.id] = getNodePosition(n);
               });
@@ -895,7 +976,10 @@ function VisualEditorInner() {
             }
           }}
           onSelectionDragStop={(_, draggedNodes) => {
-            if (dragModeRef.current === "selection" && dragStartPositionsRef.current) {
+            if (
+              dragModeRef.current === "selection" &&
+              dragStartPositionsRef.current
+            ) {
               const startPositions = dragStartPositionsRef.current;
               const moved = draggedNodes.some((node) => {
                 const start = startPositions[node.id];
@@ -937,7 +1021,9 @@ function VisualEditorInner() {
                   }}
                 >
                   Delete actor
-                  <span className="text-xs font-medium text-[color:var(--muted)]">Del</span>
+                  <span className="text-xs font-medium text-[color:var(--muted)]">
+                    Del
+                  </span>
                 </button>
                 <div className="px-2 pt-1 text-[11px] text-[color:var(--muted)]">
                   Removes the actor and its connections.
@@ -957,7 +1043,9 @@ function VisualEditorInner() {
                   }}
                 >
                   Add actor here
-                  <span className="text-xs font-medium text-[color:var(--muted)]">A</span>
+                  <span className="text-xs font-medium text-[color:var(--muted)]">
+                    A
+                  </span>
                 </button>
                 <div className="px-2 pt-1 text-[11px] text-[color:var(--muted)]">
                   Creates a new actor at this position.
@@ -977,7 +1065,9 @@ function VisualEditorInner() {
                   }}
                 >
                   Delete connection
-                  <span className="text-xs font-medium text-[color:var(--muted)]">Del</span>
+                  <span className="text-xs font-medium text-[color:var(--muted)]">
+                    Del
+                  </span>
                 </button>
                 <div className="px-2 pt-1 text-[11px] text-[color:var(--muted)]">
                   Removes this channel from the model.
