@@ -5,6 +5,7 @@ import ReactFlow, {
   Background,
   Controls,
   Position,
+  SelectionMode,
   type Connection,
   type Edge,
   type Node,
@@ -766,7 +767,7 @@ function VisualEditorInner() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           selectionOnDrag
-          selectionMode="partial"
+          selectionMode={SelectionMode.Partial}
           onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
             if (suppressSelectionChangeRef.current) return;
             const nextNodeIds = selectedNodes.map((node) => node.id).sort();

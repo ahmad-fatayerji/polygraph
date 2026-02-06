@@ -92,7 +92,8 @@ export const analyzeGraph = (model: PolyGraphModel): Diagnostic[] => {
     diagnostics.push({
       id: "W_DISCONNECTED_GRAPH",
       severity: "warn",
-      message: `Graph has ${components} disconnected components.`,
+      message: `The graph has ${components} disconnected groups of actors. Actors within different groups cannot communicate, which may indicate missing channels.`,
+      hint: 'If this is intentional, you can ignore this warning. Otherwise, add channels to connect the separate groups.',
     });
   }
 
@@ -101,8 +102,9 @@ export const analyzeGraph = (model: PolyGraphModel): Diagnostic[] => {
       diagnostics.push({
         id: "W_UNUSED_ACTOR",
         severity: "warn",
-        message: `Actor '${actor.id}' is not connected to any channels.`,
+        message: `Actor "${actor.id}" has no channels connected to it. It is isolated and will not participate in any data flow.`,
         where: { actorId: actor.id },
+        hint: 'Connect this actor to at least one channel, or remove it if it is not needed.',
       });
     }
   });

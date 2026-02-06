@@ -37,8 +37,9 @@ const parseChannels = (model: PolyGraphModel) => {
       diagnostics.push({
         id: "E_PARSE_RATIONAL",
         severity: "error",
-        message: `Unable to parse rateSrc for channel '${channel.id}'.`,
+        message: `The source rate (rateSrc) of channel "${channel.id}" is not a valid number. Received: "${rateSrcRaw || "(empty)"}".`,
         where: { channelId: channel.id, field: "rateSrc" },
+        hint: 'Use an integer like "1" or a fraction like "1/3". The value must be a positive rational number.',
       });
     }
 
@@ -46,8 +47,9 @@ const parseChannels = (model: PolyGraphModel) => {
       diagnostics.push({
         id: "E_PARSE_RATIONAL",
         severity: "error",
-        message: `Unable to parse rateDst for channel '${channel.id}'.`,
+        message: `The destination rate (rateDst) of channel "${channel.id}" is not a valid number. Received: "${rateDstRaw || "(empty)"}".`,
         where: { channelId: channel.id, field: "rateDst" },
+        hint: 'Use an integer like "-1" or a fraction like "-2/3". The value must be a negative rational number.',
       });
     }
 
@@ -55,8 +57,9 @@ const parseChannels = (model: PolyGraphModel) => {
       diagnostics.push({
         id: "E_PARSE_RATIONAL",
         severity: "error",
-        message: `Unable to parse init for channel '${channel.id}'.`,
+        message: `The initial token count (init) of channel "${channel.id}" is not a valid number. Received: "${initRaw || "(empty)"}".`,
         where: { channelId: channel.id, field: "init" },
+        hint: 'Use a non-negative integer like "0" or "2", or a fraction like "1/2".',
       });
     }
 
@@ -72,19 +75,22 @@ const parseChannels = (model: PolyGraphModel) => {
 
   model.channels.forEach((channel, idx) => {
     if (!actorIds.has(channel.src) || !actorIds.has(channel.dst)) {
+      const missing = [!actorIds.has(channel.src) ? channel.src : null, !actorIds.has(channel.dst) ? channel.dst : null].filter(Boolean);
       diagnostics.push({
         id: "E_REF_MISSING",
         severity: "error",
-        message: `Channel '${channel.id}' references a missing actor.`,
+        message: `Channel "${channel.id}" refers to actor(s) that don't exist: ${missing.map(a => `"${a}"`).join(", ")}. Every channel must connect two existing actors.`,
         where: { channelId: channel.id },
+        hint: 'Check the "src" and "dst" fields. Make sure each references an actor id defined in the actors list.',
       });
     }
     if (channel.src === channel.dst) {
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: `Channel '${channel.id}' cannot reference the same actor as src and dst.`,
+        message: `Channel "${channel.id}" has the same actor "${channel.src}" as both source and destination. Self-loops are not allowed.`,
         where: { channelId: channel.id },
+        hint: 'A channel must connect two different actors. Change either "src" or "dst" to a different actor.',
       });
     }
 
@@ -97,8 +103,9 @@ const parseChannels = (model: PolyGraphModel) => {
         diagnostics.push({
           id: "E_RATE_SIGN",
           severity: "error",
-          message: `Channel '${channel.id}' rates must be positive for src and negative for dst.`,
+          message: `Channel "${channel.id}" has incorrect rate signs. The source rate (rateSrc) must be positive (tokens produced) and the destination rate (rateDst) must be negative (tokens consumed).`,
           where: { channelId: channel.id },
+          hint: 'Example: rateSrc = "1" (produces 1 token), rateDst = "-1" (consumes 1 token). Flip the sign if yours are reversed.',
         });
       }
 
@@ -106,8 +113,9 @@ const parseChannels = (model: PolyGraphModel) => {
         diagnostics.push({
           id: "E_RATE_INTEGER_RULE",
           severity: "error",
-          message: `Channel '${channel.id}' must have an integer rate on src or dst.`,
+          message: `Channel "${channel.id}" has fractional rates on both sides. At least one of the rates (rateSrc or rateDst) must be a whole number.`,
           where: { channelId: channel.id },
+          hint: 'Change one of the rates to an integer value. For example, if rateSrc = "1/3", set rateDst to "-1" instead of another fraction.',
         });
       }
     }
@@ -117,8 +125,9 @@ const parseChannels = (model: PolyGraphModel) => {
         diagnostics.push({
           id: "E_INIT_INVALID",
           severity: "error",
-          message: `Channel '${channel.id}' has a negative initial marking.`,
+          message: `Channel "${channel.id}" has a negative initial token count, which is not physically meaningful. Tokens represent buffered data between actors.`,
           where: { channelId: channel.id, field: "init" },
+          hint: 'Set "init" to "0" or a positive value like "1".',
         });
       }
 
@@ -129,8 +138,9 @@ const parseChannels = (model: PolyGraphModel) => {
           diagnostics.push({
             id: "E_INIT_INVALID",
             severity: "error",
-            message: `Channel '${channel.id}' init must be a multiple of 1/${maxDen.toString()}.`,
+            message: `Channel "${channel.id}" initial token count must be a multiple of 1/${maxDen.toString()} to align with the channel's rate granularity.`,
             where: { channelId: channel.id, field: "init" },
+            hint: `Valid values include "0", "1/${maxDen.toString()}", "2/${maxDen.toString()}", "1", etc.`,
           });
         }
       }
@@ -149,16 +159,18 @@ const validateActors = (model: PolyGraphModel) => {
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: "Actor id must be a non-empty string.",
+        message: "An actor is missing its id. Every actor must have a unique, non-empty string identifier.",
         where: { actorId: String(actor.id ?? ""), field: "id" },
+        hint: 'Add an "id" field to this actor, e.g. "sensor_1" or "controller".',
       });
     }
     if (typeof actor.id === "string" && seen.has(actor.id)) {
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: `Duplicate actor id '${actor.id}'.`,
+        message: `Multiple actors share the id "${actor.id}". Each actor must have a unique identifier.`,
         where: { actorId: actor.id },
+        hint: 'Rename one of the duplicate actors to a distinct id.',
       });
     }
     if (typeof actor.id === "string") {
@@ -170,16 +182,18 @@ const validateActors = (model: PolyGraphModel) => {
         diagnostics.push({
           id: "E_TOPOLOGY_INVALID",
           severity: "error",
-          message: `Timed actor '${actor.id}' must define a positive frequency.`,
+          message: `Timed actor "${actor.id}" is missing a valid frequency. Timed actors fire at regular intervals and need a positive frequency (in Hz) to define their rate.`,
           where: { actorId: actor.id, field: "freq" },
+          hint: 'Set "freq" to a positive number, e.g. 100 for 100 Hz.',
         });
       }
       if (actor.phase !== undefined && actor.phase < 0) {
         diagnostics.push({
           id: "E_TOPOLOGY_INVALID",
           severity: "error",
-          message: `Timed actor '${actor.id}' must have a non-negative phase.`,
+          message: `Timed actor "${actor.id}" has a negative phase offset (${actor.phase}). The phase determines when the actor first fires and cannot be negative.`,
           where: { actorId: actor.id, field: "phase" },
+          hint: 'Set "phase" to 0 (fire immediately) or a positive value representing the initial delay.',
         });
       }
     }
@@ -198,7 +212,8 @@ export const verify = (
     diagnostics.push({
       id: "E_TOPOLOGY_INVALID",
       severity: "error",
-      message: "Model must include actors and channels arrays.",
+      message: "The model is missing required structure. A valid PolyGraph model must contain both an \"actors\" array and a \"channels\" array.",
+      hint: 'Ensure your JSON has the shape: { "actors": [...], "channels": [...] }.',
     });
     return { ok: false, diagnostics };
   }
@@ -214,7 +229,7 @@ export const verify = (
   diagnostics.push({
     id: "I_VALID_MODEL",
     severity: "info",
-    message: "Structural validation passed.",
+    message: `Structural validation passed. ${model.actors.length} actor(s) and ${model.channels.length} channel(s) are well-formed.`,
   });
 
   diagnostics.push(...analyzeGraph(model));
@@ -237,7 +252,7 @@ export const verify = (
   diagnostics.push({
     id: "I_CONSISTENT",
     severity: "info",
-    message: "Consistency check passed.",
+    message: "Consistency check passed — the model has bounded memory and a valid repetition vector.",
   });
 
   const liveness = checkLiveness(
@@ -256,7 +271,7 @@ export const verify = (
   diagnostics.push({
     id: "I_LIVE",
     severity: "info",
-    message: "Liveness check passed.",
+    message: "Liveness check passed — the model is deadlock-free. All actors can complete their required executions.",
   });
 
   return { ok: true, diagnostics, artifacts: liveness.artifacts };

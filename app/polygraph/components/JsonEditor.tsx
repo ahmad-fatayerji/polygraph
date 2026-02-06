@@ -16,9 +16,9 @@ export default function JsonEditor() {
     () => ({
       minimap: { enabled: false },
       fontSize: 13,
-      lineNumbers: "on",
+      lineNumbers: "on" as const,
       scrollBeyondLastLine: false,
-      wordWrap: "on",
+      wordWrap: "on" as const,
       formatOnPaste: true,
       formatOnType: false,
       automaticLayout: true,

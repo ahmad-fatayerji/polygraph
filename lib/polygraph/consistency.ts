@@ -240,8 +240,9 @@ export const computeTimingInfo = (
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: `Timed actor '${actor.id}' is missing a frequency.`,
+        message: `Timed actor "${actor.id}" is missing a frequency value. Without it, the system cannot compute when this actor should fire.`,
         where: { actorId: actor.id, field: "freq" },
+        hint: 'Set the "freq" property to a positive number (in Hz).',
       });
       return;
     }
@@ -250,7 +251,9 @@ export const computeTimingInfo = (
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: `Timed actor '${actor.id}' has an invalid frequency.`,
+        message: `Timed actor "${actor.id}" has an invalid frequency (${actor.freq}). Frequency must be a positive number representing cycles per second (Hz).`,
+        where: { actorId: actor.id, field: "freq" },
+        hint: 'Use a positive value like 50 or 100.',
       });
       return;
     }
@@ -261,8 +264,9 @@ export const computeTimingInfo = (
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: `Timed actor '${actor.id}' has an invalid phase.`,
+        message: `Timed actor "${actor.id}" has an invalid phase offset (${actor.phase}). Phase must be zero or a positive number.`,
         where: { actorId: actor.id, field: "phase" },
+        hint: 'Set "phase" to 0 or omit it to use the default (no delay).',
       });
       return;
     }
@@ -294,7 +298,8 @@ export const computeTimingInfo = (
     diagnostics.push({
       id: "E_TOPOLOGY_INVALID",
       severity: "error",
-      message: "Timing tick grid is not integral.",
+      message: "The timing grid cannot be divided into whole ticks. This usually means the actor frequencies and phases produce an irrational schedule.",
+      hint: 'Try using frequencies that share common factors (e.g., 50 Hz and 100 Hz instead of 50 Hz and 33 Hz).',
     });
     return undefined;
   }
@@ -304,7 +309,8 @@ export const computeTimingInfo = (
     diagnostics.push({
       id: "E_TOPOLOGY_INVALID",
       severity: "error",
-      message: "Hyperperiod tick count exceeds safe integer limits.",
+      message: "The computed hyperperiod requires too many ticks to represent safely. This happens when actor frequencies have very large least-common-multiples.",
+      hint: 'Simplify actor frequencies so their LCM is smaller. For example, use 10 Hz and 20 Hz instead of large primes.',
     });
     return undefined;
   }
@@ -323,7 +329,9 @@ export const computeTimingInfo = (
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: `Timed actor '${actor.id}' does not align with hyperperiod.`,
+        message: `Timed actor "${actor.id}" does not fire a whole number of times per hyperperiod. Its period does not evenly divide the hyperperiod.`,
+        where: { actorId: actor.id },
+        hint: 'Adjust this actor\'s frequency so its period is a factor of the overall hyperperiod.',
       });
       return;
     }
@@ -337,7 +345,9 @@ export const computeTimingInfo = (
         diagnostics.push({
           id: "E_TOPOLOGY_INVALID",
           severity: "error",
-          message: `Timed actor '${actor.id}' does not align to integer ticks.`,
+          message: `Timed actor "${actor.id}" has a firing time that does not land on an integer tick boundary.`,
+          where: { actorId: actor.id },
+          hint: 'Ensure the actor\'s phase aligns with the base tick resolution derived from all actor frequencies.',
         });
         return;
       }
@@ -346,7 +356,9 @@ export const computeTimingInfo = (
         diagnostics.push({
           id: "E_TOPOLOGY_INVALID",
           severity: "error",
-          message: `Timed actor '${actor.id}' tick exceeds safe integer limits.`,
+          message: `Timed actor "${actor.id}" produces a tick number too large to represent safely.`,
+          where: { actorId: actor.id },
+          hint: 'Reduce the frequency or phase to keep tick values within safe integer range.',
         });
         return;
       }
@@ -389,7 +401,7 @@ export const checkConsistency = (
       diagnostics.push({
         id: "E_INCONSISTENT",
         severity: "error",
-        message: "Model has no actors to form a repetition vector.",
+        message: "The model has no actors, so there is nothing to schedule. Add at least one actor to form a valid PolyGraph.",
       });
       return { ok: false, diagnostics };
     }
@@ -402,7 +414,8 @@ export const checkConsistency = (
       diagnostics.push({
         id: "E_INCONSISTENT",
         severity: "error",
-        message: "Timed repetition constraints cannot be satisfied without channels.",
+        message: "The timed actors' frequencies cannot be satisfied without any channels connecting them. The system needs data-flow channels to coordinate timed execution.",
+        hint: 'Add channels between actors, or remove the timed constraints.',
       });
       return { ok: false, diagnostics };
     }
@@ -424,7 +437,8 @@ export const checkConsistency = (
     diagnostics.push({
       id: "E_INCONSISTENT",
       severity: "error",
-      message: "No non-zero repetition vector satisfies Gamma * x = 0 and timing constraints.",
+      message: "The model is inconsistent — no valid repetition vector exists. This means the production and consumption rates across channels cannot balance, leading to unbounded token accumulation or starvation.",
+      hint: 'Check that for every channel, the ratio of rateSrc to |rateDst| is consistent across the entire graph. A common fix is adjusting rates so each connected component has a balanced token flow.',
     });
     return { ok: false, diagnostics };
   }

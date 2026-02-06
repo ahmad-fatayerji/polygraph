@@ -38,6 +38,7 @@ export default function PolygraphWorkspace() {
 
   const workerRef = useRef<Worker | null>(null);
   const pendingRunRef = useRef<"validate" | "execute" | null>(null);
+  const lastExecutionModelRef = useRef<PolyGraphModel | null>(null);
   const [status, setStatus] = useState<"idle" | "running">("idle");
   const [terminalHeight, setTerminalHeight] = useState(280);
   const [editorWidthPx, setEditorWidthPx] = useState<number | null>(null);
@@ -64,7 +65,11 @@ export default function PolygraphWorkspace() {
       const result = event.data;
       setDiagnostics(result.diagnostics);
       if (pendingRunRef.current === "execute") {
-        setExecution(result.artifacts ? result : undefined);
+        const hasArtifacts = Boolean(result.artifacts);
+        setExecution(hasArtifacts ? result : undefined);
+        setExecutionModel(
+          hasArtifacts ? lastExecutionModelRef.current ?? undefined : undefined,
+        );
       }
       pendingRunRef.current = null;
       setStatus("idle");
@@ -80,6 +85,7 @@ export default function PolygraphWorkspace() {
       ]);
       if (pendingRunRef.current === "execute") {
         setExecution(undefined);
+        setExecutionModel(undefined);
       }
       pendingRunRef.current = null;
       setStatus("idle");
@@ -89,7 +95,7 @@ export default function PolygraphWorkspace() {
       worker.terminate();
       workerRef.current = null;
     };
-  }, [setDiagnostics, setExecution]);
+  }, [setDiagnostics, setExecution, setExecutionModel]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = "light";
@@ -225,7 +231,7 @@ export default function PolygraphWorkspace() {
       const model = parsed as PolyGraphModel;
       if (computeExecution) {
         setExecution(undefined);
-        setExecutionModel(model);
+        lastExecutionModelRef.current = model;
       }
       setModel(model, "json");
 
