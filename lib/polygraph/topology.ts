@@ -1,6 +1,6 @@
 ﻿import type { Diagnostic, PolyGraphModel } from "./types";
 import type { Rational } from "./rational";
-import { fromBigint } from "./rational";
+import { add, fromBigint } from "./rational";
 
 export type Topology = {
   actorIndex: Map<string, number>;
@@ -36,8 +36,15 @@ export const buildTopology = (
     if (srcIdx === undefined || dstIdx === undefined) return;
     outgoing[srcIdx].push(chIdx);
     incoming[dstIdx].push(chIdx);
-    matrix[chIdx][srcIdx] = rates[chIdx].rateSrc;
-    matrix[chIdx][dstIdx] = rates[chIdx].rateDst;
+    if (srcIdx === dstIdx) {
+      // Self-loop: paper Def. 2(iii) sets γ_ij = 0.
+      // Use net rate (rateSrc + rateDst) so balanced self-loops
+      // contribute zero and unbalanced ones correctly show inconsistency.
+      matrix[chIdx][srcIdx] = add(rates[chIdx].rateSrc, rates[chIdx].rateDst);
+    } else {
+      matrix[chIdx][srcIdx] = rates[chIdx].rateSrc;
+      matrix[chIdx][dstIdx] = rates[chIdx].rateDst;
+    }
   });
 
   return {

@@ -219,33 +219,40 @@ Channel state rules (part of consistency):
 ### Level 3 — Liveness (Deadlock Freedom)
 
 Definition:
-Execution is LIVE iff it is consistent and no actor is permanently blocked waiting for tokens.
+Execution is LIVE iff it is consistent and non-blocking (Def. 14 of the paper).
 
-Algorithm (constructive):
-Maintain:
+Algorithm 1 from the paper ("ticks-go-first, smallest-index-first"):
 
-- global tick k
-- channel states ci (rationals)
-- firing counters yσ(actor)
-- repetition target x(actor)
+State variables:
 
-At each step:
+- `τ` — current tick (mod π, the hyperperiod tick count)
+- `z^σ` — total ticks so far
+- `z` — total ticks in a minimal consistent execution (= r · π)
+- `a` — tracking vector (counts firings of timed actors at the current tick; resets on tick)
+- `c` — channel states (rationals)
+- `y^σ` — total firing counters per actor
+- `x` — minimal repetition vector (target firings per actor)
 
-- Advance tick k.
-- Determine Allowed actors:
-  - timed actors only if this tick is significant
-  - untimed actors always allowed
-- Determine Enabled actors:
-  - all input channels have enough tokens
-- Determine Waiting actors:
-  - yσ(actor) < x(actor)
-- Fire any actor that is Allowed + Enabled + Waiting.
-- On firing: update channel states, increment yσ, record schedule + token trace.
+Sets (recomputed after each firing):
+
+- **Allowed** = untimed actors ∪ { timed actor vj | t^τ_j = 1 ∧ a_j = 0 }
+- **Enabled** = { vj | ∀ input channel ei, c_i + γ_ij ≥ 0 }
+- **Waiting** = { vj | y^σ_j < x_j }
+
+Procedure (Algorithm 1, lines 1–22):
+
+1. Initialize state to the model's initial channel state and τ = 0.
+2. **Tick as long as possible**: while a = t^τ ∧ z^σ < z, advance the clock (τ' = (τ+1) mod π, a' = 0, z^σ += 1).
+3. **Main loop**: while Enabled ∩ Allowed ∩ Waiting ≠ ∅:
+   - Choose the smallest-index actor vk in the intersection.
+   - Fire vk: update channel states (c' = c + Γ · u_k), increment y^σ_k and (if timed) a_k.
+   - Tick as long as possible again (same condition as step 2).
+4. **Result**: return y^σ = x ∧ z^σ = z.
 
 Termination:
 
-- If yσ == x and channel state == initial -> LIVE.
-- If no actor can fire and yσ != x -> DEADLOCK.
+- If y^σ == x and z^σ == z and channel state == initial → LIVE.
+- If Enabled ∩ Allowed ∩ Waiting = ∅ and y^σ ≠ x → DEADLOCK.
 
 Emit:
 

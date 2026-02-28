@@ -99,6 +99,18 @@ const parseChannels = (model: PolyGraphModel) => {
           hint: 'Example: rateSrc = "1" (produces 1 token), rateDst = "-1" (consumes 1 token). Flip the sign if yours are reversed.',
         });
       }
+
+      // Paper Def. 2(ii): at least one rate must be an integer
+      // (the other may be a rational fraction for resampling).
+      if (channel.src !== channel.dst && !isInteger(parsed.rateSrc) && !isInteger(parsed.rateDst)) {
+        diagnostics.push({
+          id: "E_RATE_INTEGER_RULE",
+          severity: "error",
+          message: `Channel "${channel.id}" has non-integer rates on both ends (rateSrc = "${channel.rateSrc}", rateDst = "${channel.rateDst}"). At least one rate per channel must be an integer — the other end may use a rational fraction for resampling.`,
+          where: { channelId: channel.id },
+          hint: 'Set the rate on the reference-frequency side to an integer (e.g. "1") and adjust the other side to a fraction if needed (e.g. "1/4").',
+        });
+      }
     }
 
     if (status.init) {
