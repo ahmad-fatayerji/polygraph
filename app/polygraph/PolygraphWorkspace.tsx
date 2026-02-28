@@ -32,7 +32,9 @@ export default function PolygraphWorkspace() {
   const jsonText = usePolygraphStore((state) => state.jsonText);
   const setDiagnostics = usePolygraphStore((state) => state.setDiagnostics);
   const setExecution = usePolygraphStore((state) => state.setExecution);
-  const setExecutionModel = usePolygraphStore((state) => state.setExecutionModel);
+  const setExecutionModel = usePolygraphStore(
+    (state) => state.setExecutionModel,
+  );
   const setModel = usePolygraphStore((state) => state.setModel);
   const reset = usePolygraphStore((state) => state.reset);
 
@@ -68,7 +70,9 @@ export default function PolygraphWorkspace() {
         const hasArtifacts = Boolean(result.artifacts);
         setExecution(hasArtifacts ? result : undefined);
         setExecutionModel(
-          hasArtifacts ? lastExecutionModelRef.current ?? undefined : undefined,
+          hasArtifacts
+            ? (lastExecutionModelRef.current ?? undefined)
+            : undefined,
         );
       }
       pendingRunRef.current = null;
@@ -259,13 +263,13 @@ export default function PolygraphWorkspace() {
   );
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-transparent px-0 py-0 text-[color:var(--foreground)]">
+    <div className="h-[100dvh] overflow-hidden bg-transparent p-2 text-[color:var(--foreground)]">
       <div
-        className="grid h-full min-h-0"
+        className="grid h-full min-h-0 gap-0"
         style={{ gridTemplateRows: `minmax(0, 1fr) 12px ${terminalHeight}px` }}
       >
         <main
-          className="animate-float-in min-h-0 overflow-hidden border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
+          className="animate-float-in min-h-0 overflow-hidden rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
           style={{ animationDelay: "40ms" }}
         >
           <div
@@ -352,7 +356,7 @@ export default function PolygraphWorkspace() {
           aria-label="Resize terminal"
           aria-orientation="horizontal"
         />
-        <div className="animate-float-in min-h-0 overflow-hidden border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
+        <div className="animate-float-in min-h-0 overflow-hidden rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
           <TerminalPanel variant="embedded" />
         </div>
       </div>

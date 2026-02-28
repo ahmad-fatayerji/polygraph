@@ -4,13 +4,17 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef } from "react";
 import { usePolygraphStore } from "../store";
 
-const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
+  ssr: false,
+});
 
 export default function JsonEditor() {
   const jsonText = usePolygraphStore((state) => state.jsonText);
   const applyJsonText = usePolygraphStore((state) => state.applyJsonText);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const editorRef = useRef<import("monaco-editor").editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<
+    import("monaco-editor").editor.IStandaloneCodeEditor | null
+  >(null);
 
   const options = useMemo(
     () => ({
@@ -23,7 +27,7 @@ export default function JsonEditor() {
       formatOnType: false,
       automaticLayout: true,
     }),
-    []
+    [],
   );
 
   useEffect(() => {
@@ -38,7 +42,7 @@ export default function JsonEditor() {
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 w-full flex-col rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
     >
       <div className="min-h-0 flex-1">
         <MonacoEditor
