@@ -240,6 +240,7 @@ All rate and token values (\`rateSrc\`, \`rateDst\`, \`init\`) use **exact ratio
 5. **\`init\` must be non-negative** (>= 0).
 6. **\`init\` must be a multiple of \`1/q\`**, where \`q = max(denominator(rateSrc), denominator(rateDst))\`.
    - Example: if rates are \`"1/4"\` and \`"-1"\`, then \`q = 4\`, and valid init values are \`"0"\`, \`"1/4"\`, \`"1/2"\`, \`"3/4"\`, \`"1"\`, etc.
+7. **At least one rate per channel must be an integer.** The other rate may be a rational fraction for resampling. Self-loop channels (where \`src == dst\`) are exempt from this rule.
 
 > **Warning:** Do not use decimal numbers like \`"0.5"\` or \`"0.333"\`. Always use fraction notation: \`"1/2"\`, \`"1/3"\`.
 
@@ -256,6 +257,7 @@ Checks that the model is well-formed:
 - All actor IDs are unique and non-empty.
 - All rate/init values parse as valid rationals.
 - \`rateSrc\` is positive, \`rateDst\` is negative, \`init\` is non-negative.
+- At least one rate per channel must be an integer (the other may be a fraction).
 - Channel \`src\` and \`dst\` reference existing actors.
 - Timed actors have valid \`freq\` or \`period\` (> 0) and \`phase\` >= 0.
 
@@ -270,12 +272,12 @@ Verifies that the model has bounded memory by solving the topology equation **Γ
 
 ### Level 3 — Liveness (Deadlock Freedom)
 
-Constructs a witness execution to prove the model is deadlock-free:
+Constructs a witness execution using Algorithm 1 ("ticks-go-first, smallest-index-first") to prove the model is deadlock-free:
 
-- Simulates actor firings respecting token availability and timing.
+- Advances the global clock eagerly, then fires the smallest-index enabled actor.
 - Verifies that every actor completes its required number of firings.
 - Confirms the system returns to its initial state (periodic schedule).
-- If an actor is permanently blocked, the model has a **deadlock**.
+- If no actor can fire but some are still waiting, the model has a **deadlock**.
 
 ---
 
@@ -289,9 +291,10 @@ Errors block verification from proceeding to the next level.
 
 | Code                 | Description                                                    |
 | -------------------- | -------------------------------------------------------------- |
-| \`E_PARSE_RATIONAL\`   | A rate or init value is not a valid rational number.           |
-| \`E_RATE_SIGN\`        | \`rateSrc\` must be positive, \`rateDst\` must be negative.        |
-| \`E_INIT_INVALID\`     | Initial tokens are negative or not a valid multiple of \`1/q\`.  |
+| \`E_PARSE_RATIONAL\`     | A rate or init value is not a valid rational number.                 |
+| \`E_RATE_SIGN\`          | \`rateSrc\` must be positive, \`rateDst\` must be negative.              |
+| \`E_RATE_INTEGER_RULE\`  | At least one rate per channel must be an integer.                    |
+| \`E_INIT_INVALID\`       | Initial tokens are negative or not a valid multiple of \`1/q\`.        |
 | \`E_REF_MISSING\`      | A channel references a non-existent actor.                     |
 | \`E_TOPOLOGY_INVALID\` | Structural issues: missing IDs, duplicate IDs, invalid timing. |
 | \`E_INCONSISTENT\`     | No valid repetition vector exists (unbounded memory).          |
@@ -335,7 +338,7 @@ A simple drone control loop with two timed sensors, an untimed estimator, a time
   ],
   "channels": [
     { "id": "c1", "src": "imu",  "dst": "est",  "rateSrc": "1",   "rateDst": "-1", "init": "0"   },
-    { "id": "c2", "src": "est",  "dst": "ctrl", "rateSrc": "1",   "rateDst": "-1", "init": "0"   },
+    { "id": "c2", "src": "est",  "dst": "ctrl", "rateSrc": "1/2", "rateDst": "-1", "init": "1/2" },
     { "id": "c3", "src": "ctrl", "dst": "log",  "rateSrc": "1/2", "rateDst": "-1", "init": "1/2" }
   ]
 }
@@ -344,7 +347,8 @@ A simple drone control loop with two timed sensors, an untimed estimator, a time
 **Explanation:**
 - The IMU fires at 200 Hz, the controller at 100 Hz.
 - The estimator and logger are untimed — they fire when input tokens are available.
-- Channel c3 uses fractional rates: the controller produces 1/2 token per firing, the logger consumes 1 full token. The channel starts with 1/2 token.
+- Channel c2 uses fractional rates: the estimator produces 1/2 token per firing, the controller consumes 1 token. This accounts for the 2:1 frequency ratio (200 Hz → 100 Hz). The channel starts with 1/2 token to pre-load the pipeline.
+- Channel c3 is similar: the controller produces 1/2 token per firing, the logger consumes 1 full token.
 
 ### ADAS System
 
@@ -370,31 +374,31 @@ A more complex Advanced Driver Assistance System with timed sensors, untimed pro
     { "id": "ifd", "label": "Info Display",        "timed": true,  "period": 100, "phase": 50 }
   ],
   "channels": [
-    { "id": "c_ldr_obd", "src": "ldr", "dst": "obd", "rateSrc": "1/4", "rateDst": "-1",   "init": "3/4" },
-    { "id": "c_obd_spc", "src": "obd", "dst": "spc", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_odm_spc", "src": "odm", "dst": "spc", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_lcm_tsd", "src": "lcm", "dst": "tsd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_tsd_spc", "src": "tsd", "dst": "spc", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_lcm_tld", "src": "lcm", "dst": "tld", "rateSrc": "1/5", "rateDst": "-1/2", "init": "0" },
-    { "id": "c_lcm_rmd", "src": "lcm", "dst": "rmd", "rateSrc": "1/2", "rateDst": "-1/2", "init": "0" },
-    { "id": "c_lcm_pdd", "src": "lcm", "dst": "pdd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_rcm_rmd", "src": "rcm", "dst": "rmd", "rateSrc": "1/5", "rateDst": "-4/5", "init": "0" },
-    { "id": "c_rcm_dmd", "src": "rcm", "dst": "dmd", "rateSrc": "4/5", "rateDst": "-2/5", "init": "0" },
-    { "id": "c_rmd_apd", "src": "rmd", "dst": "apd", "rateSrc": "1/2", "rateDst": "-1/5", "init": "0" },
-    { "id": "c_dmd_apd", "src": "dmd", "dst": "apd", "rateSrc": "2/5", "rateDst": "-1/5", "init": "0" },
-    { "id": "c_pdd_apd", "src": "pdd", "dst": "apd", "rateSrc": "1",   "rateDst": "-3/5", "init": "0" },
-    { "id": "c_apd_ifd", "src": "apd", "dst": "ifd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_spc_ebs", "src": "spc", "dst": "ebs", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_ebs_ifd", "src": "ebs", "dst": "ifd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" }
+    { "id": "c_ldr_obd", "src": "ldr", "dst": "obd", "rateSrc": "1/4", "rateDst": "-1", "init": "3/4" },
+    { "id": "c_obd_spc", "src": "obd", "dst": "spc", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_odm_spc", "src": "odm", "dst": "spc", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_lcm_tsd", "src": "lcm", "dst": "tsd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_tsd_spc", "src": "tsd", "dst": "spc", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_lcm_tld", "src": "lcm", "dst": "tld", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_lcm_rmd", "src": "lcm", "dst": "rmd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_lcm_pdd", "src": "lcm", "dst": "pdd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_rcm_rmd", "src": "rcm", "dst": "rmd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_rcm_dmd", "src": "rcm", "dst": "dmd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_rmd_apd", "src": "rmd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_dmd_apd", "src": "dmd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_pdd_apd", "src": "pdd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_apd_ifd", "src": "apd", "dst": "ifd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_spc_ebs", "src": "spc", "dst": "ebs", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
+    { "id": "c_ebs_ifd", "src": "ebs", "dst": "ifd", "rateSrc": "1",   "rateDst": "-1", "init": "0" }
   ]
 }
 \`\`\`
 
 **Key patterns in this example:**
-- **Phased timed actors:** \`ebs\` has \`phase: 20\`, \`ifd\` has \`phase: 50\`.
-- **Mixed rates:** \`c_ldr_obd\` uses \`rateSrc: "1/4"\` — the lidar needs 4 firings to produce 1 full token.
-- **Fan-in:** \`spc\` (Speed Control) consumes from three channels.
-- **Fan-out:** \`lcm\` (Left Camera) produces to four processing actors.
+- **Phased timed actors:** \`ebs\` has \`phase: 20\` (fires 20 ms into each period), \`ifd\` has \`phase: 50\`.
+- **Fractional rate with initial tokens:** \`c_ldr_obd\` uses \`rateSrc: "1/4"\` — the lidar fires 4× per period, each producing 1/4 token. The channel starts with 3/4 token so the detector can fire after just 1 lidar sample.
+- **Fan-in:** \`spc\` (Speed Control) consumes from three channels (\`obd\`, \`odm\`, \`tsd\`) — it waits until all three provide a token.
+- **Fan-out:** \`lcm\` (Left Camera) produces to four processing actors (\`tsd\`, \`tld\`, \`rmd\`, \`pdd\`).
 
 ---
 

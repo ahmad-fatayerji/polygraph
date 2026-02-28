@@ -28,7 +28,10 @@ const fieldRow = (
   required: boolean,
   description: React.ReactNode,
 ) => (
-  <tr key={name} className="border-b border-[color:var(--panel-border)] last:border-b-0">
+  <tr
+    key={name}
+    className="border-b border-[color:var(--panel-border)] last:border-b-0"
+  >
     <td className="whitespace-nowrap py-2 pr-3 align-top font-mono text-xs font-semibold text-[color:var(--foreground)]">
       {name}
     </td>
@@ -85,10 +88,18 @@ const sections: Section[] = [
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-[color:var(--panel-border)]">
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Field</th>
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Type</th>
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Req?</th>
-                <th className="pb-1 text-xs font-semibold text-[color:var(--foreground)]">Description</th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Field
+                </th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Type
+                </th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Req?
+                </th>
+                <th className="pb-1 text-xs font-semibold text-[color:var(--foreground)]">
+                  Description
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -122,25 +133,84 @@ const sections: Section[] = [
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-[color:var(--panel-border)]">
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Field</th>
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Type</th>
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Req?</th>
-                <th className="pb-1 text-xs font-semibold text-[color:var(--foreground)]">Description</th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Field
+                </th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Type
+                </th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Req?
+                </th>
+                <th className="pb-1 text-xs font-semibold text-[color:var(--foreground)]">
+                  Description
+                </th>
               </tr>
             </thead>
             <tbody>
-              {fieldRow("id", "string", true, <>A unique identifier for the actor. Used by channels to reference endpoints. Must be non-empty and unique across all actors.</>)}
-              {fieldRow("label", "string", false, "Optional human-readable display label.")}
-              {fieldRow("timed", "boolean", true, <>Set to {code("true")} for actors that fire at a fixed rate, {code("false")} for untimed (data-driven) actors.</>)}
-              {fieldRow("freq", "number", false, <>Firing frequency in <strong>Hz</strong> (cycles per second). Required for timed actors if {code("period")} is not set. E.g. {code("100")} = 100 Hz.</>)}
-              {fieldRow("period", "number", false, <>Firing period in <strong>milliseconds</strong>. Required for timed actors if {code("freq")} is not set. E.g. {code("10")} = 10 ms (100 Hz).</>)}
-              {fieldRow("phase", "number", false, <>Initial phase offset in <strong>milliseconds</strong>. Determines when the actor first fires. Must be &ge; 0. Defaults to 0 if omitted.</>)}
+              {fieldRow(
+                "id",
+                "string",
+                true,
+                <>
+                  A unique identifier for the actor. Used by channels to
+                  reference endpoints. Must be non-empty and unique across all
+                  actors.
+                </>,
+              )}
+              {fieldRow(
+                "label",
+                "string",
+                false,
+                "Optional human-readable display label.",
+              )}
+              {fieldRow(
+                "timed",
+                "boolean",
+                true,
+                <>
+                  Set to {code("true")} for actors that fire at a fixed rate,{" "}
+                  {code("false")} for untimed (data-driven) actors.
+                </>,
+              )}
+              {fieldRow(
+                "freq",
+                "number",
+                false,
+                <>
+                  Firing frequency in <strong>Hz</strong> (cycles per second).
+                  Required for timed actors if {code("period")} is not set. E.g.{" "}
+                  {code("100")} = 100 Hz.
+                </>,
+              )}
+              {fieldRow(
+                "period",
+                "number",
+                false,
+                <>
+                  Firing period in <strong>milliseconds</strong>. Required for
+                  timed actors if {code("freq")} is not set. E.g. {code("10")} =
+                  10 ms (100 Hz).
+                </>,
+              )}
+              {fieldRow(
+                "phase",
+                "number",
+                false,
+                <>
+                  Initial phase offset in <strong>milliseconds</strong>.
+                  Determines when the actor first fires. Must be &ge; 0.
+                  Defaults to 0 if omitted.
+                </>,
+              )}
             </tbody>
           </table>
         </div>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--foreground)]">Timed actor (using freq):</p>
+          <p className="font-semibold text-[color:var(--foreground)]">
+            Timed actor (using freq):
+          </p>
           {jsonBlock(`{
   "id": "imu",
   "label": "IMU Sensor",
@@ -151,7 +221,9 @@ const sections: Section[] = [
         </div>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--foreground)]">Timed actor (using period):</p>
+          <p className="font-semibold text-[color:var(--foreground)]">
+            Timed actor (using period):
+          </p>
           {jsonBlock(`{
   "id": "ebs",
   "label": "Emergency Braking",
@@ -162,7 +234,9 @@ const sections: Section[] = [
         </div>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--foreground)]">Untimed actor:</p>
+          <p className="font-semibold text-[color:var(--foreground)]">
+            Untimed actor:
+          </p>
           {jsonBlock(`{
   "id": "estimator",
   "label": "State Estimator",
@@ -171,8 +245,10 @@ const sections: Section[] = [
         </div>
 
         <div className="rounded-lg border border-[color:var(--severity-info-bg)] bg-[color:var(--severity-info-bg)] p-3 text-xs text-[color:var(--severity-info-text)]">
-          <strong>Note:</strong> Only one of {code("freq")} or {code("period")} is needed for timed actors.
-          If both are provided, {code("freq")} takes precedence. Untimed actors should not have {code("freq")}, {code("period")}, or {code("phase")}.
+          <strong>Note:</strong> Only one of {code("freq")} or {code("period")}{" "}
+          is needed for timed actors. If both are provided, {code("freq")} takes
+          precedence. Untimed actors should not have {code("freq")},{" "}
+          {code("period")}, or {code("phase")}.
         </div>
       </div>
     ),
@@ -186,45 +262,92 @@ const sections: Section[] = [
       <div className="space-y-3 text-sm text-[color:var(--muted-strong)]">
         <p>
           Channels are directed edges connecting a <strong>source</strong> actor
-          to a <strong>destination</strong> actor. They carry tokens — each firing
-          of the source produces tokens, and each firing of the destination
-          consumes tokens.
+          to a <strong>destination</strong> actor. They carry tokens — each
+          firing of the source produces tokens, and each firing of the
+          destination consumes tokens.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-[color:var(--panel-border)]">
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Field</th>
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Type</th>
-                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">Req?</th>
-                <th className="pb-1 text-xs font-semibold text-[color:var(--foreground)]">Description</th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Field
+                </th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Type
+                </th>
+                <th className="pb-1 pr-3 text-xs font-semibold text-[color:var(--foreground)]">
+                  Req?
+                </th>
+                <th className="pb-1 text-xs font-semibold text-[color:var(--foreground)]">
+                  Description
+                </th>
               </tr>
             </thead>
             <tbody>
-              {fieldRow("id", "string", true, "A unique identifier for the channel.")}
-              {fieldRow("src", "string", true, <>The {code("id")} of the source actor (producer).</>)}
-              {fieldRow("dst", "string", true, <>The {code("id")} of the destination actor (consumer). Self-loops ({code("src == dst")}) are allowed for feedback channels.</>)}
-              {fieldRow("rateSrc", "string", true, <>
-                <strong>Production rate</strong> — a positive rational number as a string.
-                Specifies how many tokens the source actor produces per firing.
-                E.g. {code('"1"')}, {code('"1/3"')}, {code('"4/5"')}.
-              </>)}
-              {fieldRow("rateDst", "string", true, <>
-                <strong>Consumption rate</strong> — a <em>negative</em> rational number as a string.
-                Specifies how many tokens the destination actor consumes per firing (with a negative sign).
-                E.g. {code('"-1"')}, {code('"-2/3"')}, {code('"-1/2"')}.
-              </>)}
-              {fieldRow("init", "string", true, <>
-                <strong>Initial tokens</strong> — a non-negative rational number as a string.
-                The number of tokens initially present in the channel before any actor fires.
-                E.g. {code('"0"')}, {code('"1"')}, {code('"3/4"')}.
-              </>)}
+              {fieldRow(
+                "id",
+                "string",
+                true,
+                "A unique identifier for the channel.",
+              )}
+              {fieldRow(
+                "src",
+                "string",
+                true,
+                <>The {code("id")} of the source actor (producer).</>,
+              )}
+              {fieldRow(
+                "dst",
+                "string",
+                true,
+                <>
+                  The {code("id")} of the destination actor (consumer).
+                  Self-loops ({code("src == dst")}) are allowed for feedback
+                  channels.
+                </>,
+              )}
+              {fieldRow(
+                "rateSrc",
+                "string",
+                true,
+                <>
+                  <strong>Production rate</strong> — a positive rational number
+                  as a string. Specifies how many tokens the source actor
+                  produces per firing. E.g. {code('"1"')}, {code('"1/3"')},{" "}
+                  {code('"4/5"')}.
+                </>,
+              )}
+              {fieldRow(
+                "rateDst",
+                "string",
+                true,
+                <>
+                  <strong>Consumption rate</strong> — a <em>negative</em>{" "}
+                  rational number as a string. Specifies how many tokens the
+                  destination actor consumes per firing (with a negative sign).
+                  E.g. {code('"-1"')}, {code('"-2/3"')}, {code('"-1/2"')}.
+                </>,
+              )}
+              {fieldRow(
+                "init",
+                "string",
+                true,
+                <>
+                  <strong>Initial tokens</strong> — a non-negative rational
+                  number as a string. The number of tokens initially present in
+                  the channel before any actor fires. E.g. {code('"0"')},{" "}
+                  {code('"1"')}, {code('"3/4"')}.
+                </>,
+              )}
             </tbody>
           </table>
         </div>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--foreground)]">Simple 1:1 channel:</p>
+          <p className="font-semibold text-[color:var(--foreground)]">
+            Simple 1:1 channel:
+          </p>
           {jsonBlock(`{
   "id": "c1",
   "src": "imu",
@@ -236,7 +359,9 @@ const sections: Section[] = [
         </div>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--foreground)]">Fractional-rate channel with initial tokens:</p>
+          <p className="font-semibold text-[color:var(--foreground)]">
+            Fractional-rate channel with initial tokens:
+          </p>
           {jsonBlock(`{
   "id": "c2",
   "src": "lidar",
@@ -262,13 +387,16 @@ const sections: Section[] = [
     content: (
       <div className="space-y-3 text-sm text-[color:var(--muted-strong)]">
         <p>
-          All rate and token values ({code("rateSrc")}, {code("rateDst")}, {code("init")})
-          use <strong>exact rational arithmetic</strong> — never floating point. Values
-          are expressed as <strong>strings</strong> to preserve precision.
+          All rate and token values ({code("rateSrc")}, {code("rateDst")},{" "}
+          {code("init")}) use <strong>exact rational arithmetic</strong> — never
+          floating point. Values are expressed as <strong>strings</strong> to
+          preserve precision.
         </p>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--foreground)]">Valid formats:</p>
+          <p className="font-semibold text-[color:var(--foreground)]">
+            Valid formats:
+          </p>
           <ul className="list-inside list-disc space-y-1 text-xs">
             <li>{code('"1"')} — integer one</li>
             <li>{code('"-1"')} — negative one</li>
@@ -284,21 +412,37 @@ const sections: Section[] = [
           <ul className="list-inside list-disc space-y-1 text-xs">
             <li>Denominator must not be zero.</li>
             <li>Sign is always placed in the numerator (normalized form).</li>
-            <li>{code("rateSrc")} must be <strong>positive</strong> (tokens are produced).</li>
-            <li>{code("rateDst")} must be <strong>negative</strong> (tokens are consumed).</li>
-            <li>{code("init")} must be <strong>non-negative</strong> (&ge; 0).</li>
             <li>
-              {code("init")} must be a multiple of {code("1/q")} where {code("q")} is
-              the maximum denominator of the channel{"'"}s rates. For example, if
-              rates are {code('"1/4"')} and {code('"-1"')}, then {code("q = 4")} and valid
-              init values include {code('"0"')}, {code('"1/4"')}, {code('"1/2"')}, {code('"3/4"')}, {code('"1"')}, etc.
+              {code("rateSrc")} must be <strong>positive</strong> (tokens are
+              produced).
             </li>
+            <li>
+              {code("rateDst")} must be <strong>negative</strong> (tokens are
+              consumed).
+            </li>
+            <li>
+              {code("init")} must be <strong>non-negative</strong> (&ge; 0).
+            </li>
+            <li>
+              {code("init")} must be a multiple of {code("1/q")} where{" "}
+              {code("q")} is the maximum denominator of the channel{"'"}s rates.
+              For example, if rates are {code('"1/4"')} and {code('"-1"')}, then{" "}
+              {code("q = 4")} and valid init values include {code('"0"')},{" "}
+              {code('"1/4"')}, {code('"1/2"')}, {code('"3/4"')}, {code('"1"')},
+              etc.
+            </li>{" "}
+            <li>
+              At least one rate per channel must be an <strong>integer</strong>.
+              The other rate may be a rational fraction for resampling.
+              Self-loop channels ({code("src == dst")}) are exempt.
+            </li>{" "}
           </ul>
         </div>
 
         <div className="rounded-lg border border-[color:var(--severity-warn-bg)] bg-[color:var(--severity-warn-bg)] p-3 text-xs text-[color:var(--severity-warn-text)]">
-          <strong>Warning:</strong> Do not use decimal numbers like {code('"0.5"')} or {code('"0.333"')}.
-          Always use fraction notation: {code('"1/2"')}, {code('"1/3"')}.
+          <strong>Warning:</strong> Do not use decimal numbers like{" "}
+          {code('"0.5"')} or {code('"0.333"')}. Always use fraction notation:{" "}
+          {code('"1/2"')}, {code('"1/3"')}.
         </div>
       </div>
     ),
@@ -317,13 +461,14 @@ const sections: Section[] = [
         <ol className="list-inside list-decimal space-y-3 text-xs">
           <li>
             <strong>Structural Validation</strong> — checks that all IDs are
-            unique, rates parse correctly, signs are correct, references exist,
-            and timed actors have valid timing.
+            unique, rates parse correctly, signs are correct, at least one rate
+            per channel is an integer, references exist, and timed actors have
+            valid timing.
           </li>
           <li>
             <strong>Consistency</strong> — verifies that the model has bounded
-            memory by solving the topology equation &Gamma;x = 0. A
-            consistent model will not accumulate unbounded tokens.
+            memory by solving the topology equation &Gamma;x = 0. A consistent
+            model will not accumulate unbounded tokens.
           </li>
           <li>
             <strong>Liveness</strong> — constructs a witness execution to prove
@@ -332,8 +477,9 @@ const sections: Section[] = [
           </li>
         </ol>
         <p>
-          <strong>Validate</strong> runs all three checks. <strong>Execute</strong> additionally
-          produces schedule and token-trace artifacts for visualization.
+          <strong>Validate</strong> runs all three checks.{" "}
+          <strong>Execute</strong> additionally produces schedule and
+          token-trace artifacts for visualization.
         </p>
       </div>
     ),
@@ -348,28 +494,64 @@ const sections: Section[] = [
         <p>The verifier produces diagnostics at three severity levels:</p>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--severity-error-text)]">Errors (block verification):</p>
+          <p className="font-semibold text-[color:var(--severity-error-text)]">
+            Errors (block verification):
+          </p>
           <ul className="list-inside list-disc space-y-1 text-xs">
-            <li>{code("E_PARSE_RATIONAL")} — a rate or init value is not a valid rational</li>
-            <li>{code("E_RATE_SIGN")} — rateSrc must be positive, rateDst must be negative</li>
-            <li>{code("E_INIT_INVALID")} — initial tokens are negative or not a valid multiple</li>
-            <li>{code("E_REF_MISSING")} — channel references a non-existent actor</li>
-            <li>{code("E_TOPOLOGY_INVALID")} — structural issues (missing IDs, duplicate IDs, invalid timing)</li>
-            <li>{code("E_INCONSISTENT")} — no valid repetition vector exists (unbounded memory)</li>
-            <li>{code("E_NOT_LIVE")} — deadlock detected during witness construction</li>
+            <li>
+              {code("E_PARSE_RATIONAL")} — a rate or init value is not a valid
+              rational
+            </li>
+            <li>
+              {code("E_RATE_SIGN")} — rateSrc must be positive, rateDst must be
+              negative
+            </li>
+            <li>
+              {code("E_RATE_INTEGER_RULE")} — at least one rate per channel must
+              be an integer
+            </li>
+            <li>
+              {code("E_INIT_INVALID")} — initial tokens are negative or not a
+              valid multiple
+            </li>
+            <li>
+              {code("E_REF_MISSING")} — channel references a non-existent actor
+            </li>
+            <li>
+              {code("E_TOPOLOGY_INVALID")} — structural issues (missing IDs,
+              duplicate IDs, invalid timing)
+            </li>
+            <li>
+              {code("E_INCONSISTENT")} — no valid repetition vector exists
+              (unbounded memory)
+            </li>
+            <li>
+              {code("E_NOT_LIVE")} — deadlock detected during witness
+              construction
+            </li>
           </ul>
         </div>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--severity-warn-text)]">Warnings:</p>
+          <p className="font-semibold text-[color:var(--severity-warn-text)]">
+            Warnings:
+          </p>
           <ul className="list-inside list-disc space-y-1 text-xs">
-            <li>{code("W_DISCONNECTED_GRAPH")} — the graph has separate disconnected components</li>
-            <li>{code("W_UNUSED_ACTOR")} — an actor has no channels connected to it</li>
+            <li>
+              {code("W_DISCONNECTED_GRAPH")} — the graph has separate
+              disconnected components
+            </li>
+            <li>
+              {code("W_UNUSED_ACTOR")} — an actor has no channels connected to
+              it
+            </li>
           </ul>
         </div>
 
         <div className="space-y-2">
-          <p className="font-semibold text-[color:var(--severity-info-text)]">Info:</p>
+          <p className="font-semibold text-[color:var(--severity-info-text)]">
+            Info:
+          </p>
           <ul className="list-inside list-disc space-y-1 text-xs">
             <li>{code("I_VALID_MODEL")} — structural validation passed</li>
             <li>{code("I_CONSISTENT")} — consistency check passed</li>
@@ -386,8 +568,10 @@ const sections: Section[] = [
     title: "Complete Example",
     content: (
       <div className="space-y-3 text-sm text-[color:var(--muted-strong)]">
-        <p>A minimal PX4 drone control loop with two timed sensors, an untimed
-          estimator, a timed controller, and a logger:</p>
+        <p>
+          A minimal PX4 drone control loop with two timed sensors, an untimed
+          estimator, a timed controller, and a logger:
+        </p>
         {jsonBlock(`{
   "meta": { "name": "PX4 Control Loop", "version": 1 },
   "actors": [
@@ -398,16 +582,16 @@ const sections: Section[] = [
   ],
   "channels": [
     { "id": "c1", "src": "imu",  "dst": "est",  "rateSrc": "1",   "rateDst": "-1", "init": "0"   },
-    { "id": "c2", "src": "est",  "dst": "ctrl", "rateSrc": "1",   "rateDst": "-1", "init": "0"   },
+    { "id": "c2", "src": "est",  "dst": "ctrl", "rateSrc": "1/2", "rateDst": "-1", "init": "1/2" },
     { "id": "c3", "src": "ctrl", "dst": "log",  "rateSrc": "1/2", "rateDst": "-1", "init": "1/2" }
   ]
 }`)}
         <p className="text-xs text-[color:var(--muted)]">
           The IMU fires at 200 Hz, the controller at 100 Hz. The estimator and
           logger are untimed — they fire whenever their input channels have
-          enough tokens. Channel c3 uses fractional rates: the controller
-          produces 1/2 token per firing, and the logger consumes 1 full token.
-          The channel is initialized with 1/2 token.
+          enough tokens. Channels c2 and c3 use fractional rates to account for
+          the 2:1 frequency ratio, and start with 1/2 token to pre-load the
+          pipeline.
         </p>
       </div>
     ),
@@ -422,7 +606,8 @@ const sections: Section[] = [
         <ul className="list-inside list-disc space-y-2 text-xs leading-relaxed">
           <li>
             <strong>Start simple.</strong> Begin with a few actors and 1:1
-            channels ({code('"1"')} / {code('"-1"')} rates) before introducing fractional rates.
+            channels ({code('"1"')} / {code('"-1"')} rates) before introducing
+            fractional rates.
           </li>
           <li>
             <strong>Use meaningful IDs.</strong> Actor and channel IDs appear in
@@ -439,16 +624,18 @@ const sections: Section[] = [
             input before the source has fired.
           </li>
           <li>
-            <strong>Self-loops are valid.</strong> A channel where {code("src == dst")}
-            {" "}represents a feedback buffer within one actor.
+            <strong>Self-loops are valid.</strong> A channel where{" "}
+            {code("src == dst")} represents a feedback buffer within one actor.
           </li>
           <li>
             <strong>Frequency vs Period.</strong> Use whichever is more natural:
-            {code("freq: 100")} (100 Hz) is the same as {code("period: 10")} (10 ms).
+            {code("freq: 100")} (100 Hz) is the same as {code("period: 10")} (10
+            ms).
           </li>
           <li>
             <strong>Phase offsets.</strong> Use {code("phase")} to stagger timed
-            actors. For example, {code("phase: 20")} delays the first firing by 20 ms.
+            actors. For example, {code("phase: 20")} delays the first firing by
+            20 ms.
           </li>
         </ul>
       </div>
@@ -458,7 +645,11 @@ const sections: Section[] = [
 
 /* ─── collapsible section ───────────────────────────────────────────── */
 
-function HelpSection({ section, isOpen, onToggle }: {
+function HelpSection({
+  section,
+  isOpen,
+  onToggle,
+}: {
   section: Section;
   isOpen: boolean;
   onToggle: () => void;
@@ -484,11 +675,7 @@ function HelpSection({ section, isOpen, onToggle }: {
           />
         </svg>
       </button>
-      {isOpen && (
-        <div className="px-5 pb-4 pt-1">
-          {section.content}
-        </div>
-      )}
+      {isOpen && <div className="px-5 pb-4 pt-1">{section.content}</div>}
     </div>
   );
 }
@@ -512,8 +699,7 @@ export default function JsonSyntaxHelp({ onClose }: { onClose: () => void }) {
     });
   };
 
-  const expandAll = () =>
-    setOpenSections(new Set(sections.map((s) => s.id)));
+  const expandAll = () => setOpenSections(new Set(sections.map((s) => s.id)));
 
   const collapseAll = () => setOpenSections(new Set());
 
@@ -559,7 +745,12 @@ export default function JsonSyntaxHelp({ onClose }: { onClose: () => void }) {
             className="ml-1 rounded p-1 text-[color:var(--muted)] transition hover:bg-[color:var(--accent-muted)] hover:text-[color:var(--foreground)]"
             aria-label="Close help"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4"
+            >
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
           </button>
