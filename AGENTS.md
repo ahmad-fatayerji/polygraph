@@ -154,7 +154,6 @@ Channels:
 - `src` and `dst` exist
 - `rateSrc > 0`
 - `rateDst < 0`
-- at least ONE of `rateSrc` or `rateDst` must be INTEGER
 - `init >= 0`
 - Note: Self-loops (where `src == dst`) are allowed and represent feedback channels within an actor
 

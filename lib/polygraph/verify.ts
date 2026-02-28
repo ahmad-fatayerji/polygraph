@@ -99,16 +99,6 @@ const parseChannels = (model: PolyGraphModel) => {
           hint: 'Example: rateSrc = "1" (produces 1 token), rateDst = "-1" (consumes 1 token). Flip the sign if yours are reversed.',
         });
       }
-
-      if (!isInteger(parsed.rateSrc) && !isInteger(parsed.rateDst)) {
-        diagnostics.push({
-          id: "E_RATE_INTEGER_RULE",
-          severity: "error",
-          message: `Channel "${channel.id}" has fractional rates on both sides. At least one of the rates (rateSrc or rateDst) must be a whole number.`,
-          where: { channelId: channel.id },
-          hint: 'Change one of the rates to an integer value. For example, if rateSrc = "1/3", set rateDst to "-1" instead of another fraction.',
-        });
-      }
     }
 
     if (status.init) {

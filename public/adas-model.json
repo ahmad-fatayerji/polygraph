@@ -1,0 +1,217 @@
+{
+  "meta": {
+    "name": "ADAS System Model",
+    "version": 1,
+    "description": "Advanced Driver Assistance System from Static Timing Analysis paper"
+  },
+  "actors": [
+    {
+      "id": "ldr",
+      "label": "Lidar (LDR)",
+      "timed": true,
+      "period": 25
+    },
+    {
+      "id": "odm",
+      "label": "Odometer (ODM)",
+      "timed": true,
+      "period": 100
+    },
+    {
+      "id": "lcm",
+      "label": "Left Camera (LCM)",
+      "timed": true,
+      "period": 100
+    },
+    {
+      "id": "rcm",
+      "label": "Right Camera (RCM)",
+      "timed": true,
+      "period": 100
+    },
+    {
+      "id": "obd",
+      "label": "Near-field Obstacles Detection (OBD)",
+      "timed": false
+    },
+    {
+      "id": "tsd",
+      "label": "Traffic Sign Detection (TSD)",
+      "timed": false
+    },
+    {
+      "id": "tld",
+      "label": "Traffic Lanes Detection (TLD)",
+      "timed": false
+    },
+    {
+      "id": "pdd",
+      "label": "Pedestrians Detection (PDD)",
+      "timed": false
+    },
+    {
+      "id": "rmd",
+      "label": "Road Mask Detection (RMD)",
+      "timed": false
+    },
+    {
+      "id": "dmd",
+      "label": "Depth Map Detection (DMD)",
+      "timed": false
+    },
+    {
+      "id": "apd",
+      "label": "Advanced Pedestrians Detection (APD)",
+      "timed": false
+    },
+    {
+      "id": "spc",
+      "label": "Speed Control (SPC)",
+      "timed": false
+    },
+    {
+      "id": "ebs",
+      "label": "Emergency Braking System (EBS)",
+      "timed": true,
+      "period": 100,
+      "phase": 20
+    },
+    {
+      "id": "ifd",
+      "label": "Information Display (IFD)",
+      "timed": true,
+      "period": 100,
+      "phase": 50
+    }
+  ],
+  "channels": [
+    {
+      "id": "c_ldr_obd",
+      "src": "ldr",
+      "dst": "obd",
+      "rateSrc": "1/4",
+      "rateDst": "-1",
+      "init": "3/4"
+    },
+    {
+      "id": "c_obd_spc",
+      "src": "obd",
+      "dst": "spc",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_odm_spc",
+      "src": "odm",
+      "dst": "spc",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_lcm_tsd",
+      "src": "lcm",
+      "dst": "tsd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_tsd_spc",
+      "src": "tsd",
+      "dst": "spc",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_lcm_tld",
+      "src": "lcm",
+      "dst": "tld",
+      "rateSrc": "1/5",
+      "rateDst": "-1/2",
+      "init": "0"
+    },
+    {
+      "id": "c_lcm_rmd",
+      "src": "lcm",
+      "dst": "rmd",
+      "rateSrc": "1/2",
+      "rateDst": "-1/2",
+      "init": "0"
+    },
+    {
+      "id": "c_lcm_pdd",
+      "src": "lcm",
+      "dst": "pdd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_rcm_rmd",
+      "src": "rcm",
+      "dst": "rmd",
+      "rateSrc": "1/5",
+      "rateDst": "-4/5",
+      "init": "0"
+    },
+    {
+      "id": "c_rcm_dmd",
+      "src": "rcm",
+      "dst": "dmd",
+      "rateSrc": "4/5",
+      "rateDst": "-2/5",
+      "init": "0"
+    },
+    {
+      "id": "c_rmd_apd",
+      "src": "rmd",
+      "dst": "apd",
+      "rateSrc": "1/2",
+      "rateDst": "-1/5",
+      "init": "0"
+    },
+    {
+      "id": "c_dmd_apd",
+      "src": "dmd",
+      "dst": "apd",
+      "rateSrc": "2/5",
+      "rateDst": "-1/5",
+      "init": "0"
+    },
+    {
+      "id": "c_pdd_apd",
+      "src": "pdd",
+      "dst": "apd",
+      "rateSrc": "1",
+      "rateDst": "-3/5",
+      "init": "0"
+    },
+    {
+      "id": "c_apd_ifd",
+      "src": "apd",
+      "dst": "ifd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_spc_ebs",
+      "src": "spc",
+      "dst": "ebs",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_ebs_ifd",
+      "src": "ebs",
+      "dst": "ifd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    }
+  ]
+}
