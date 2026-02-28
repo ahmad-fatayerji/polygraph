@@ -700,7 +700,7 @@ export default function DocsPage() {
                   {
                     n: "1",
                     title: "Structural Validation",
-                    desc: "Checks that all IDs are unique, rates parse correctly, signs are correct, references exist, and timed actors have valid timing.",
+                    desc: "Checks that all IDs are unique, rates parse correctly, signs are correct, at least one rate per channel is an integer, references exist, and timed actors have valid timing.",
                   },
                   {
                     n: "2",
@@ -710,7 +710,7 @@ export default function DocsPage() {
                   {
                     n: "3",
                     title: "Liveness",
-                    desc: "Constructs a witness execution to prove deadlock freedom. Every actor completes its required firings.",
+                    desc: "Constructs a witness execution (ticks-go-first, smallest-index-first) to prove deadlock freedom. Every actor completes its required firings.",
                   },
                 ].map((step) => (
                   <div
@@ -760,6 +760,10 @@ export default function DocsPage() {
                   [
                     "E_RATE_SIGN",
                     "`rateSrc` must be positive, `rateDst` must be negative.",
+                  ],
+                  [
+                    "E_RATE_INTEGER_RULE",
+                    "At least one rate per channel must be an integer.",
                   ],
                   [
                     "E_INIT_INVALID",
@@ -836,15 +840,15 @@ export default function DocsPage() {
   ],
   "channels": [
     { "id": "c1", "src": "imu",  "dst": "est",  "rateSrc": "1",   "rateDst": "-1", "init": "0"   },
-    { "id": "c2", "src": "est",  "dst": "ctrl", "rateSrc": "1",   "rateDst": "-1", "init": "0"   },
+    { "id": "c2", "src": "est",  "dst": "ctrl", "rateSrc": "1/2", "rateDst": "-1", "init": "1/2" },
     { "id": "c3", "src": "ctrl", "dst": "log",  "rateSrc": "1/2", "rateDst": "-1", "init": "1/2" }
   ]
 }`}
               />
               <Callout type="tip">
-                The IMU fires at 200 Hz, the controller at 100 Hz. Channel c3
-                uses fractional rates: the controller produces 1/2 token per
-                firing, the logger consumes 1 full token.
+                The IMU fires at 200 Hz, the controller at 100 Hz. Channels c2
+                and c3 use fractional rates to account for the 2:1 frequency
+                ratio. Both start with 1/2 token to pre-load the pipeline.
               </Callout>
 
               <SectionHeading id="adas-system" level={3}>
@@ -880,14 +884,14 @@ export default function DocsPage() {
     { "id": "c_odm_spc", "src": "odm", "dst": "spc", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
     { "id": "c_lcm_tsd", "src": "lcm", "dst": "tsd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
     { "id": "c_tsd_spc", "src": "tsd", "dst": "spc", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_lcm_tld", "src": "lcm", "dst": "tld", "rateSrc": "1/5", "rateDst": "-1/2", "init": "0" },
-    { "id": "c_lcm_rmd", "src": "lcm", "dst": "rmd", "rateSrc": "1/2", "rateDst": "-1/2", "init": "0" },
+    { "id": "c_lcm_tld", "src": "lcm", "dst": "tld", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
+    { "id": "c_lcm_rmd", "src": "lcm", "dst": "rmd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
     { "id": "c_lcm_pdd", "src": "lcm", "dst": "pdd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
-    { "id": "c_rcm_rmd", "src": "rcm", "dst": "rmd", "rateSrc": "1/5", "rateDst": "-4/5", "init": "0" },
-    { "id": "c_rcm_dmd", "src": "rcm", "dst": "dmd", "rateSrc": "4/5", "rateDst": "-2/5", "init": "0" },
-    { "id": "c_rmd_apd", "src": "rmd", "dst": "apd", "rateSrc": "1/2", "rateDst": "-1/5", "init": "0" },
-    { "id": "c_dmd_apd", "src": "dmd", "dst": "apd", "rateSrc": "2/5", "rateDst": "-1/5", "init": "0" },
-    { "id": "c_pdd_apd", "src": "pdd", "dst": "apd", "rateSrc": "1",   "rateDst": "-3/5", "init": "0" },
+    { "id": "c_rcm_rmd", "src": "rcm", "dst": "rmd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
+    { "id": "c_rcm_dmd", "src": "rcm", "dst": "dmd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
+    { "id": "c_rmd_apd", "src": "rmd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
+    { "id": "c_dmd_apd", "src": "dmd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
+    { "id": "c_pdd_apd", "src": "pdd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
     { "id": "c_apd_ifd", "src": "apd", "dst": "ifd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
     { "id": "c_spc_ebs", "src": "spc", "dst": "ebs", "rateSrc": "1",   "rateDst": "-1",   "init": "0" },
     { "id": "c_ebs_ifd", "src": "ebs", "dst": "ifd", "rateSrc": "1",   "rateDst": "-1",   "init": "0" }
