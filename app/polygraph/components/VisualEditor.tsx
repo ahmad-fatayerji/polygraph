@@ -175,7 +175,13 @@ function VisualEditorInner() {
               {actor.label ?? actor.id}
             </span>
             <span className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted)]">
-              {actor.timed ? "timed" : "untimed"}
+              {actor.timed
+                ? actor.freq
+                  ? `${actor.freq} HZ`
+                  : actor.period
+                    ? `${actor.period} MS`
+                    : "TIMED"
+                : "UNTIMED"}
             </span>
           </div>
         ),
