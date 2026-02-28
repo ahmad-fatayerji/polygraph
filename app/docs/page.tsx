@@ -1148,7 +1148,7 @@ export default function DocsPage() {
                   </div>
                 </div>
               </div>
-              <Callout>
+              <Callout type="info">
                 Keyboard shortcuts are disabled while typing inside text inputs
                 (e.g. the properties sidebar fields).
               </Callout>
