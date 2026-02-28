@@ -21,11 +21,118 @@ import ReactFlow, {
   useEdgesState,
   useNodesState,
   useStoreApi,
+  EdgeLabelRenderer,
+  BaseEdge,
+  getBezierPath,
+  type EdgeProps,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import type { PolyGraphModel } from "@/lib/polygraph/types";
 import { usePolygraphStore } from "../store";
 import { defaultPosition, type ActorPosition } from "../graphLayout";
+
+/* ── Custom edge with rates near nodes + init circle ── */
+const RATE_LABEL_STYLE: React.CSSProperties = {
+  position: "absolute",
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--foreground)",
+  background: "var(--background)",
+  padding: "2px 4px",
+  borderRadius: 3,
+  whiteSpace: "nowrap",
+  pointerEvents: "all",
+};
+
+function InitEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+  style,
+  markerEnd,
+}: EdgeProps) {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const rateSrc = data?.rateSrc as string | undefined;
+  const rateDst = data?.rateDst as string | undefined;
+  const init = data?.init as string | undefined;
+  const hasInit = init && init !== "0";
+
+  // Position near source (20% along the edge) and near target (80%)
+  const t = 0.18;
+  const srcLabelX = sourceX + (targetX - sourceX) * t;
+  const srcLabelY = sourceY + (targetY - sourceY) * t;
+  const dstLabelX = sourceX + (targetX - sourceX) * (1 - t);
+  const dstLabelY = sourceY + (targetY - sourceY) * (1 - t);
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
+      <EdgeLabelRenderer>
+        {/* rateSrc label near source node */}
+        <div
+          style={{
+            ...RATE_LABEL_STYLE,
+            transform: `translate(-50%, -50%) translate(${srcLabelX}px,${srcLabelY}px)`,
+          }}
+          className="nodrag nopan"
+        >
+          {rateSrc}
+        </div>
+        {/* rateDst label near destination node */}
+        <div
+          style={{
+            ...RATE_LABEL_STYLE,
+            transform: `translate(-50%, -50%) translate(${dstLabelX}px,${dstLabelY}px)`,
+          }}
+          className="nodrag nopan"
+        >
+          {rateDst}
+        </div>
+        {/* init circle in the middle */}
+        {hasInit && (
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              pointerEvents: "all",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 24,
+              height: 24,
+              minWidth: 24,
+              borderRadius: "50%",
+              border: "1.5px solid var(--foreground)",
+              fontSize: 10,
+              fontWeight: 600,
+              color: "var(--foreground)",
+              background: "var(--background)",
+              lineHeight: 1,
+            }}
+            className="nodrag nopan"
+          >
+            {init}
+          </div>
+        )}
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
+const edgeTypes = { init: InitEdge };
 
 const nextId = (prefix: string, existing: string[]) => {
   let index = 1;
@@ -183,6 +290,11 @@ function VisualEditorInner() {
                     : "TIMED"
                 : "UNTIMED"}
             </span>
+            {actor.timed && actor.phase != null && actor.phase > 0 && (
+              <span className="text-[10px] tracking-[0.08em]" style={{ color: "#c0392b" }}>
+                +{actor.phase} ms
+              </span>
+            )}
           </div>
         ),
       },
@@ -202,21 +314,25 @@ function VisualEditorInner() {
   }, [model.actors, actorPositions]);
 
   const derivedEdges = useMemo<Edge[]>(() => {
-    return model.channels.map((channel) => ({
-      id: channel.id,
-      source: channel.src,
-      target: channel.dst,
-      label: `${channel.rateSrc} / ${channel.rateDst}`,
-      style: {
-        stroke: "var(--edge)",
-        strokeWidth: 1.4,
-      },
-      labelStyle: {
-        fill: "var(--foreground)",
-        fontSize: 11,
-        fontWeight: 600,
-      },
-    }));
+    return model.channels.map((channel) => {
+      // Remove leading minus sign from rateDst for display (negative is internal convention)
+      const displayRateDst = channel.rateDst.replace(/^-/, "");
+      return {
+        id: channel.id,
+        source: channel.src,
+        target: channel.dst,
+        type: "init",
+        data: {
+          rateSrc: channel.rateSrc,
+          rateDst: displayRateDst,
+          init: channel.init,
+        },
+        style: {
+          stroke: "var(--edge)",
+          strokeWidth: 1.4,
+        },
+      };
+    });
   }, [model.channels]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(derivedNodes);
@@ -818,6 +934,7 @@ function VisualEditorInner() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
+          edgeTypes={edgeTypes}
           className="h-full w-full"
           fitView
           nodesConnectable
