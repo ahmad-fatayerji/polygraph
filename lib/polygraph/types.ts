@@ -47,6 +47,9 @@ export type ExecutionResult = {
 
 export type PolyGraphModel = {
   meta?: { name?: string; version?: number };
+  layout?: {
+    actors?: Record<string, { x: number; y: number }>;
+  };
   actors: Array<{
     id: string;
     label?: string;
