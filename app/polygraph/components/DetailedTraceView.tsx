@@ -429,14 +429,20 @@ const DetailedTraceView = forwardRef<
     const tickCount = execution?.artifacts?.hyperperiod?.tickCount;
     if (!schedule || !tickCount || schedule.length === 0) return null;
 
-    // baseTick in ms = GCD of all timed actor periods
+    // baseTick in ms = hyperperiod_ms / tickCount
+    // Using LCM of periods divided by tickCount ensures phase offsets that force
+    // a finer tick grid are correctly reflected (GCD of periods alone is wrong
+    // when actors have non-zero phase offsets).
     const gcdF = (a: number, b: number): number =>
       b < 0.0001 ? a : gcdF(b, a % b);
+    const lcmF = (a: number, b: number): number => (a / gcdF(a, b)) * b;
     const periods = model.actors
       .filter((a) => a.timed)
       .map((a) => (a.period != null ? a.period : a.freq ? 1000 / a.freq : 0))
       .filter((p) => p > 0);
-    const baseTick_ms = periods.length > 0 ? periods.reduce(gcdF) : 1;
+    const hyperperiod_ms = periods.length > 0 ? periods.reduce(lcmF) : 0;
+    const baseTick_ms =
+      hyperperiod_ms > 0 && tickCount > 0 ? hyperperiod_ms / tickCount : 1;
 
     // Build adjacency (skip self-loops for path analysis)
     const outEdges = new Map<string, string[]>();
@@ -445,10 +451,15 @@ const DetailedTraceView = forwardRef<
       outEdges.set(a.id, []);
       inDegree.set(a.id, 0);
     }
+    const seenEdge = new Set<string>();
     for (const ch of model.channels) {
       if (ch.src !== ch.dst) {
-        outEdges.get(ch.src)?.push(ch.dst);
-        inDegree.set(ch.dst, (inDegree.get(ch.dst) ?? 0) + 1);
+        const key = `${ch.src}\0${ch.dst}`;
+        if (!seenEdge.has(key)) {
+          seenEdge.add(key);
+          outEdges.get(ch.src)?.push(ch.dst);
+          inDegree.set(ch.dst, (inDegree.get(ch.dst) ?? 0) + 1);
+        }
       }
     }
     const sources = model.actors
@@ -673,14 +684,6 @@ const DetailedTraceView = forwardRef<
                     </span>
                   </div>
                   <div className="flex items-center gap-3 font-mono text-xs">
-                    <span className="text-[color:var(--muted)]">
-                      best&nbsp;
-                      <span className="text-[color:var(--foreground)]">
-                        {lat!.best} ticks
-                        {" = "}
-                        {(lat!.best * criticalPaths.baseTick_ms).toFixed(2)} ms
-                      </span>
-                    </span>
                     <span
                       className={
                         i === 0
