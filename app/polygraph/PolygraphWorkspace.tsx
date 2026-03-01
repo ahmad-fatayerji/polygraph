@@ -43,6 +43,7 @@ export default function PolygraphWorkspace() {
   const lastExecutionModelRef = useRef<PolyGraphModel | null>(null);
   const [status, setStatus] = useState<"idle" | "running">("idle");
   const [terminalHeight, setTerminalHeight] = useState(280);
+  const [cycles, setCycles] = useState(1);
   const [editorWidthPx, setEditorWidthPx] = useState<number | null>(null);
   const splitRef = useRef<HTMLDivElement | null>(null);
   const splitDragRef = useRef<{
@@ -256,10 +257,10 @@ export default function PolygraphWorkspace() {
       setStatus("running");
       workerRef.current.postMessage({
         model,
-        options: { computeExecution },
+        options: { computeExecution, cycles },
       });
     },
-    [jsonText, setDiagnostics, setExecution, setExecutionModel, setModel],
+    [jsonText, cycles, setDiagnostics, setExecution, setExecutionModel, setModel],
   );
 
   return (
@@ -290,6 +291,8 @@ export default function PolygraphWorkspace() {
                     onExecute={() => runVerification(true)}
                     onReset={reset}
                     status={status}
+                    cycles={cycles}
+                    onCyclesChange={setCycles}
                   />
                   {status === "running" && (
                     <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">

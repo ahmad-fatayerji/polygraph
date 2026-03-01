@@ -4,6 +4,8 @@ import {
   isInteger,
   maxDenominator,
   mul,
+  neg,
+  absRational,
   parseRational,
   rationalZero,
 } from "./rational";
@@ -68,7 +70,7 @@ const parseChannels = (model: PolyGraphModel) => {
       src: channel.src,
       dst: channel.dst,
       rateSrc: rateSrcResult.ok ? rateSrcResult.value : rationalZero,
-      rateDst: rateDstResult.ok ? rateDstResult.value : rationalZero,
+      rateDst: rateDstResult.ok ? neg(absRational(rateDstResult.value)) : rationalZero,
       init: initResult.ok ? initResult.value : rationalZero,
     };
   });
@@ -90,13 +92,23 @@ const parseChannels = (model: PolyGraphModel) => {
     if (!parsed || !status) return;
 
     if (status.rateSrc && status.rateDst) {
-      if (compare(parsed.rateSrc, rationalZero) <= 0 || compare(parsed.rateDst, rationalZero) >= 0) {
+      if (compare(parsed.rateSrc, rationalZero) <= 0) {
         diagnostics.push({
           id: "E_RATE_SIGN",
           severity: "error",
-          message: `Channel "${channel.id}" has incorrect rate signs. The source rate (rateSrc) must be positive (tokens produced) and the destination rate (rateDst) must be negative (tokens consumed).`,
+          message: `Channel "${channel.id}" has an invalid source rate (rateSrc = "${channel.rateSrc}"). The source rate must be positive (tokens produced).`,
           where: { channelId: channel.id },
-          hint: 'Example: rateSrc = "1" (produces 1 token), rateDst = "-1" (consumes 1 token). Flip the sign if yours are reversed.',
+          hint: 'Example: rateSrc = "1" (produces 1 token per firing).',
+        });
+      }
+
+      if (compare(parsed.rateDst, rationalZero) === 0) {
+        diagnostics.push({
+          id: "E_RATE_SIGN",
+          severity: "error",
+          message: `Channel "${channel.id}" has a zero destination rate (rateDst). The destination rate must be a positive value (tokens consumed per firing).`,
+          where: { channelId: channel.id },
+          hint: 'Example: rateDst = "1" (consumes 1 token per firing).',
         });
       }
 
@@ -204,14 +216,26 @@ const validateActors = (model: PolyGraphModel) => {
         });
       }
 
-      if (actor.phase !== undefined && actor.phase < 0) {
-        diagnostics.push({
-          id: "E_TOPOLOGY_INVALID",
-          severity: "error",
-          message: `Timed actor "${actor.id}" has a negative phase offset (${actor.phase} ms). The phase determines when the actor first fires and cannot be negative.`,
-          where: { actorId: actor.id, field: "phase" },
-          hint: 'Set "phase" to 0 (fire immediately) or a positive value in milliseconds representing the initial delay, e.g. 20 for 20 ms.',
-        });
+      if (actor.phase !== undefined && actor.phase !== "" && actor.phase !== 0) {
+        const phaseStr = String(actor.phase);
+        const phaseResult = parseRational(phaseStr);
+        if (!phaseResult.ok) {
+          diagnostics.push({
+            id: "E_PARSE_RATIONAL",
+            severity: "error",
+            message: `Timed actor "${actor.id}" has an invalid phase value: "${phaseStr}". Phase must be a rational number.`,
+            where: { actorId: actor.id, field: "phase" },
+            hint: 'Use an integer like "20" or a fraction like "200/3".',
+          });
+        } else if (compare(phaseResult.value, rationalZero) < 0) {
+          diagnostics.push({
+            id: "E_TOPOLOGY_INVALID",
+            severity: "error",
+            message: `Timed actor "${actor.id}" has a negative phase offset (${phaseStr} ms). The phase determines when the actor first fires and cannot be negative.`,
+            where: { actorId: actor.id, field: "phase" },
+            hint: 'Set "phase" to "0" (fire immediately) or a positive value like "20" or "200/3".',
+          });
+        }
       }
     }
   });
@@ -266,17 +290,31 @@ export const verify = (
     return { ok: false, diagnostics };
   }
 
+  // Apply cycle multiplier to repetition vector
+  const cycles = options?.cycles && options.cycles > 1 ? options.cycles : 1;
+  const scaledRepetition = cycles > 1
+    ? {
+      ...consistency.repetition,
+      vector: consistency.repetition.vector.map((v) => v * BigInt(cycles)),
+      r: consistency.repetition.r * BigInt(cycles),
+    }
+    : consistency.repetition;
+
+  const repStr = `[${scaledRepetition.vector.join(", ")}]`;
+  const rStr = scaledRepetition.r.toString();
+  const piStr = scaledRepetition.timing?.tickCount?.toString() ?? "1";
+
   diagnostics.push({
     id: "I_CONSISTENT",
     severity: "info",
-    message: "Consistency check passed — the model has bounded memory and a valid repetition vector.",
+    message: `Consistency check passed — repetition vector x = ${repStr}, r = ${rStr}, π = ${piStr}${cycles > 1 ? ` (${cycles}× minimal cycle)` : ""}.`,
   });
 
   const liveness = checkLiveness(
     model,
     channelParse.parsedChannels,
     topology,
-    consistency.repetition,
+    scaledRepetition,
     options
   );
   diagnostics.push(...liveness.diagnostics);

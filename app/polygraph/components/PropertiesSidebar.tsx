@@ -74,7 +74,7 @@ export default function PropertiesSidebar() {
                       timed,
                       freq: timed ? (item.freq ?? 1) : undefined,
                       period: undefined,
-                      phase: timed ? (item.phase ?? 0) : undefined,
+                      phase: timed ? (item.phase ?? "0") : undefined,
                     }
                   : item,
               );
@@ -136,13 +136,14 @@ export default function PropertiesSidebar() {
                 Phase (ms)
               </span>
               <input
-                type="number"
+                type="text"
                 className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
-                value={actor.phase ?? 0}
+                value={actor.phase != null ? String(actor.phase) : "0"}
+                placeholder="e.g., 0, 20, 200/3"
                 onChange={(event) => {
                   const nextActors = model.actors.map((item) =>
                     item.id === actor.id
-                      ? { ...item, phase: Number(event.target.value) }
+                      ? { ...item, phase: event.target.value }
                       : item,
                   );
                   setModel({ ...model, actors: nextActors }, "visual");
@@ -192,11 +193,13 @@ export default function PropertiesSidebar() {
             </span>
             <input
               className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
-              value={channel.rateDst}
+              value={channel.rateDst.replace(/^-/, "")}
               onChange={(event) => {
+                const raw = event.target.value;
+                // Store as-is; the verifier will auto-negate
                 const nextChannels = model.channels.map((item) =>
                   item.id === channel.id
-                    ? { ...item, rateDst: event.target.value }
+                    ? { ...item, rateDst: raw }
                     : item,
                 );
                 setModel({ ...model, channels: nextChannels }, "visual");

@@ -1,4 +1,4 @@
-﻿import type { Diagnostic, ExecutionResult, PolyGraphModel, VerifyOptions } from "./types";
+﻿import type { DetailedTraceStep, Diagnostic, ExecutionResult, PolyGraphModel, VerifyOptions } from "./types";
 import type { Rational } from "./rational";
 import {
   add,
@@ -86,6 +86,37 @@ export const checkLiveness = (
   const scheduleMap = new Map<number, string[]>();              // absolute tick → fired actor ids
   const tokenTrace = captureArtifacts ? initTokenTrace(channels) : undefined;
 
+  // Detailed trace — captures state at every fire/tick event
+  const detailedTrace: DetailedTraceStep[] = [];
+  let stateIndex = 1;
+
+  /** Snapshot the current state into the detailed trace. */
+  const snapshotState = (label: string) => {
+    if (!captureArtifacts) return;
+    detailedTrace.push({
+      stateIndex,
+      label,
+      channelStates: channelStates.map(rationalToString),
+      tau,
+      tracking: tracking.map((v) => v.toString()),
+      firingVector: firingCounts.map((v) => v.toString()),
+      totalTicks: zSigma,
+    });
+    stateIndex += 1;
+  };
+
+  /** Format a superscript number for state labels. */
+  const sup = (n: number): string => {
+    const digits = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+    return String(n).split("").map((d) => digits[parseInt(d)]).join("");
+  };
+
+  /** Format a subscript number for actor labels. */
+  const sub = (n: number): string => {
+    const digits = "₀₁₂₃₄₅₆₇₈₉";
+    return String(n).split("").map((d) => digits[parseInt(d)]).join("");
+  };
+
   // ----- Helper: t^τ_j — is timed actor expected to fire at current tick? -----
   const isExpectedAtTick = (actorIdx: number): boolean => {
     const actor = model.actors[actorIdx];
@@ -106,11 +137,13 @@ export const checkLiveness = (
 
   // ----- doTick: τ' = (τ+1) mod π, a' = 0, z^σ += 1 (Def. 8) -----
   const doTick = () => {
+    const prevState = stateIndex - 1;
     if (!scheduleMap.has(zSigma)) scheduleMap.set(zSigma, []);
     zSigma += 1;
     tau = pi > 0 ? (tau + 1) % pi : 0;
     for (let i = 0; i < actorCount; i += 1) tracking[i] = 0n;
     if (captureArtifacts) recordTokens(zSigma);
+    snapshotState(`tick(s${sup(prevState)})`);
   };
 
   const recordTokens = (tick: number) => {
@@ -150,6 +183,9 @@ export const checkLiveness = (
 
   // ===== Algorithm 1: Liveness test =====
 
+  // Snapshot initial state s¹
+  snapshotState(`s${sup(1)}`);
+
   // Lines 3-5: Extend σ by ticks as long as possible (initial tick advancement)
   while (canTick()) doTick();
 
@@ -167,6 +203,7 @@ export const checkLiveness = (
       if (!isEnabled(actorIdx)) continue;
 
       // Lines 12-13: Fire actor vk
+      const prevStateFire = stateIndex - 1;
       fireActor(actorIdx);
       firingCounts[actorIdx] += 1n;
       totalFirings += 1n;
@@ -175,6 +212,9 @@ export const checkLiveness = (
       // Record firing in schedule at current absolute tick
       if (!scheduleMap.has(zSigma)) scheduleMap.set(zSigma, []);
       scheduleMap.get(zSigma)!.push(model.actors[actorIdx].id);
+
+      // Snapshot state after firing
+      snapshotState(`fire(v${sub(actorIdx + 1)}, s${sup(prevStateFire)})`);
 
       // Safety: detect negative channel state (should not happen in a valid execution)
       const negative = channelStates.some((s) => compare(s, rationalZero) < 0);
@@ -268,6 +308,7 @@ export const checkLiveness = (
           : { tickCount: 1, significantTicks: [] },
         schedule,
         tokenTrace,
+        detailedTrace,
       }
       : undefined,
   };

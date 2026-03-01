@@ -290,9 +290,9 @@ function VisualEditorInner() {
                     : "TIMED"
                 : "UNTIMED"}
             </span>
-            {actor.timed && actor.phase != null && actor.phase > 0 && (
+            {actor.timed && actor.phase != null && String(actor.phase) !== "0" && String(actor.phase) !== "" && (
               <span className="text-[10px] tracking-[0.08em]" style={{ color: "#c0392b" }}>
-                +{actor.phase} ms
+                +{String(actor.phase)} ms
               </span>
             )}
           </div>
@@ -315,8 +315,6 @@ function VisualEditorInner() {
 
   const derivedEdges = useMemo<Edge[]>(() => {
     return model.channels.map((channel) => {
-      // Remove leading minus sign from rateDst for display (negative is internal convention)
-      const displayRateDst = channel.rateDst.replace(/^-/, "");
       return {
         id: channel.id,
         source: channel.src,
@@ -324,7 +322,7 @@ function VisualEditorInner() {
         type: "init",
         data: {
           rateSrc: channel.rateSrc,
-          rateDst: displayRateDst,
+          rateDst: channel.rateDst.replace(/^-/, ""),
           init: channel.init,
         },
         style: {
@@ -529,7 +527,7 @@ function VisualEditorInner() {
         src: connection.source,
         dst: connection.target,
         rateSrc: "1",
-        rateDst: "-1",
+        rateDst: "1",
         init: "0",
       };
       setModel(

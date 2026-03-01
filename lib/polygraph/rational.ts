@@ -63,6 +63,8 @@ export const isZero = (value: Rational) => value.n === 0n;
 export const isPositive = (value: Rational) => value.n > 0n;
 export const isNegative = (value: Rational) => value.n < 0n;
 export const isInteger = (value: Rational) => value.d === 1n;
+export const neg = (value: Rational): Rational => ({ n: -value.n, d: value.d });
+export const absRational = (value: Rational): Rational => ({ n: abs(value.n), d: value.d });
 
 export const floor = (value: Rational): bigint => {
   if (value.n >= 0n) return value.n / value.d;

@@ -12,6 +12,16 @@ export type Diagnostic = {
   hint?: string;
 };
 
+export type DetailedTraceStep = {
+  stateIndex: number;        // l in s^l
+  label: string;             // e.g. "s⁰" (initial), "fire(v₁, s⁰)", "tick(s²)"
+  channelStates: string[];   // token count per channel (rational string), ordered by channel index
+  tau: number;               // τ^l — current tick mod hyperperiod
+  tracking: string[];        // a_i per actor (bigint as string)
+  firingVector: string[];    // y^σ per actor (bigint as string)
+  totalTicks: number;        // z^σ
+};
+
 export type ExecutionResult = {
   ok: boolean;
   diagnostics: Diagnostic[];
@@ -31,6 +41,7 @@ export type ExecutionResult = {
         tokens: string;
       }>;
     }>;
+    detailedTrace?: DetailedTraceStep[];
   };
 };
 
@@ -42,7 +53,7 @@ export type PolyGraphModel = {
     timed: boolean;
     freq?: number; // Hz (optional if period is provided)
     period?: number; // milliseconds (optional if freq is provided)
-    phase?: number; // milliseconds, optional
+    phase?: string | number; // milliseconds, rational string e.g. "0", "20", "200/3", or number
     ui?: { x: number; y: number };
   }>;
   channels: Array<{
@@ -57,5 +68,7 @@ export type PolyGraphModel = {
 
 export type VerifyOptions = {
   computeExecution?: boolean;
+  /** Number of minimal cycles to simulate (default: 1). Paper examples often use 2. */
+  cycles?: number;
 };
 

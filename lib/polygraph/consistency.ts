@@ -13,6 +13,7 @@ import {
   modRational,
   mul,
   parseNumberToRational,
+  parseRational,
   rationalOne,
   rationalZero,
   sub,
@@ -278,16 +279,18 @@ export const computeTimingInfo = (
 
     const period = div(rationalOne, freq);
     // Phase is in milliseconds; convert to seconds
-    const phaseMs = actor.phase ?? 0;
-    const phaseSeconds = div(parseNumberToRational(phaseMs) || rationalZero, { n: 1000n, d: 1n });
+    const phaseMsRaw = actor.phase != null ? String(actor.phase) : "0";
+    const phaseParsed = parseRational(phaseMsRaw);
+    const phaseMsRat = phaseParsed.ok ? phaseParsed.value : rationalZero;
+    const phaseSeconds = div(phaseMsRat, { n: 1000n, d: 1n });
 
     if (compare(phaseSeconds, rationalZero) < 0) {
       diagnostics.push({
         id: "E_TOPOLOGY_INVALID",
         severity: "error",
-        message: `Timed actor "${actor.id}" has a negative phase offset (${phaseMs} ms). Phase must be zero or a positive number.`,
+        message: `Timed actor "${actor.id}" has a negative phase offset (${phaseMsRaw} ms). Phase must be zero or a positive value.`,
         where: { actorId: actor.id, field: "phase" },
-        hint: 'Set "phase" to 0 or a positive number in milliseconds, e.g. 20.',
+        hint: 'Set "phase" to "0" or a positive value like "20" or "200/3".',
       });
       return;
     }

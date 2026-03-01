@@ -7,6 +7,8 @@ type ToolbarProps = {
   onExecute: () => void;
   onReset: () => void;
   status: "idle" | "running";
+  cycles: number;
+  onCyclesChange: (cycles: number) => void;
 };
 
 const ToolbarButton = ({
@@ -48,6 +50,8 @@ export default function Toolbar({
   onExecute,
   onReset,
   status,
+  cycles,
+  onCyclesChange,
 }: ToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -57,6 +61,26 @@ export default function Toolbar({
         </p>
       </div>
       <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 rounded-full border border-[color:var(--panel-border)] px-3 py-1.5">
+          <label
+            htmlFor="cycles-input"
+            className="text-xs font-medium text-[color:var(--muted)]"
+          >
+            Cycles
+          </label>
+          <input
+            id="cycles-input"
+            type="number"
+            min={1}
+            max={20}
+            value={cycles}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (v >= 1 && v <= 20) onCyclesChange(v);
+            }}
+            className="w-10 rounded bg-[color:var(--panel-muted)] px-1.5 py-0.5 text-center text-xs font-semibold text-[color:var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--focus-ring)]"
+          />
+        </div>
         <ToolbarButton onClick={onValidate} disabled={status === "running"}>
           Validate
         </ToolbarButton>
