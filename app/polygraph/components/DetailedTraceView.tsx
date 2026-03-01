@@ -1,15 +1,426 @@
 "use client";
 
-import type { ExecutionResult, PolyGraphModel, DetailedTraceStep } from "@/lib/polygraph/types";
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import type {
+  ExecutionResult,
+  PolyGraphModel,
+  DetailedTraceStep,
+} from "@/lib/polygraph/types";
 
-export default function DetailedTraceView({
-  execution,
-  model,
-}: {
-  execution?: ExecutionResult;
-  model: PolyGraphModel;
-}) {
+export interface DetailedTraceViewHandle {
+  exportPng: () => Promise<void>;
+  exportSvg: () => void;
+  exportCsv: () => void;
+}
+
+const DetailedTraceView = forwardRef<
+  DetailedTraceViewHandle,
+  { execution?: ExecutionResult; model: PolyGraphModel }
+>(function DetailedTraceView(
+  {
+    execution,
+    model,
+  }: {
+    execution?: ExecutionResult;
+    model: PolyGraphModel;
+  },
+  ref,
+) {
   const trace = execution?.artifacts?.detailedTrace;
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const channels = model.channels;
+  const actors = model.actors;
+  const timedActorIndices = actors
+    .map((a, i) => (a.timed ? i : -1))
+    .filter((i) => i >= 0);
+
+  // --- Export PNG (direct OffscreenCanvas — no DOM cloning, no CSS resolution) ---
+  const handleExportPng = useCallback(async () => {
+    if (!trace || isExporting) return;
+    setIsExporting(true);
+    // Yield two rAF so the loading overlay paints before heavy work
+    await new Promise<void>((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r())),
+    );
+    try {
+      const cs = getComputedStyle(document.documentElement);
+      const v = (name: string, fallback: string) =>
+        cs.getPropertyValue(name).trim() || fallback;
+
+      const bgColor = v("--panel", "#18181b");
+      const bgAltColor = v("--panel-muted", "#1f1f23");
+      const headerBg = v("--panel-muted", "#1f1f23");
+      const fgColor = v("--foreground", "#fafafa");
+      const mutedColor = v("--muted-strong", "#a1a1aa");
+      const borderColor = v("--panel-border", "#27272a");
+      const fireBg = v("--severity-info-bg", "#14261a");
+      const tickBg = v("--severity-warn-bg", "#26200f");
+
+      const FONT_PX = 11;
+      const FONT = `${FONT_PX}px "Consolas","Courier New",monospace`;
+      const BOLD = `bold ${FONT_PX}px "Consolas","Courier New",monospace`;
+      const SM = `${FONT_PX - 1}px "Consolas","Courier New",monospace`;
+      const ROW_H = 22;
+      const HEADER_H = 44;
+      const PAD_X = 8;
+
+      type Col = { label: string; sub?: string; w: number };
+      const cols: Col[] = [
+        { label: "State", w: 220 },
+        ...channels.map((ch, i) => ({
+          label: `c${i + 1}`,
+          sub: `${ch.src}→${ch.dst}`.slice(0, 14),
+          w: 62,
+        })),
+        { label: "τˡ", w: 44 },
+        ...timedActorIndices.map((idx) => ({
+          label: `a${idx + 1}`,
+          sub: (actors[idx].label ?? actors[idx].id).slice(0, 10),
+          w: 56,
+        })),
+        { label: "yσ", w: 220 },
+        { label: "zσ", w: 44 },
+      ];
+
+      const totalW = cols.reduce((s, c) => s + c.w, 0);
+      const totalH = HEADER_H + trace.length * ROW_H;
+
+      const canvas = new OffscreenCanvas(totalW, totalH);
+      const ctx = canvas.getContext("2d")!;
+
+      // Background
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, totalW, totalH);
+
+      // Header
+      ctx.fillStyle = headerBg;
+      ctx.fillRect(0, 0, totalW, HEADER_H);
+
+      let x = 0;
+      for (const col of cols) {
+        const cx = x + col.w / 2;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        if (col.sub) {
+          ctx.font = BOLD;
+          ctx.fillStyle = mutedColor;
+          ctx.fillText(col.label, cx, HEADER_H / 2 - 8, col.w - 4);
+          ctx.font = SM;
+          ctx.fillStyle = mutedColor;
+          ctx.globalAlpha = 0.6;
+          ctx.fillText(col.sub, cx, HEADER_H / 2 + 8, col.w - 4);
+          ctx.globalAlpha = 1;
+        } else {
+          ctx.font = BOLD;
+          ctx.fillStyle = mutedColor;
+          ctx.fillText(col.label, cx, HEADER_H / 2, col.w - 4);
+        }
+        ctx.fillStyle = borderColor;
+        ctx.fillRect(x + col.w - 1, 0, 1, HEADER_H);
+        x += col.w;
+      }
+      // Header bottom border
+      ctx.fillStyle = borderColor;
+      ctx.fillRect(0, HEADER_H - 1, totalW, 1);
+
+      // Rows
+      for (let r = 0; r < trace.length; r++) {
+        const step = trace[r];
+        const y = HEADER_H + r * ROW_H;
+        const isFireRow = step.label.startsWith("fire");
+        const isTickRow = step.label.startsWith("tick");
+
+        ctx.fillStyle = isFireRow
+          ? fireBg
+          : isTickRow
+            ? tickBg
+            : r % 2 === 0
+              ? bgColor
+              : bgAltColor;
+        ctx.fillRect(0, y, totalW, ROW_H);
+        ctx.fillStyle = borderColor;
+        ctx.fillRect(0, y + ROW_H - 1, totalW, 1);
+
+        const cells: string[] = [
+          step.label,
+          ...step.channelStates.slice(0, channels.length),
+          String(step.tau),
+          ...timedActorIndices.map((idx) => String(step.tracking[idx] ?? "0")),
+          step.firingVector.join(" "),
+          String(step.totalTicks),
+        ];
+
+        ctx.font = FONT;
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = fgColor;
+        x = 0;
+        for (let ci = 0; ci < cols.length; ci++) {
+          const col = cols[ci];
+          if (ci === 0) {
+            ctx.textAlign = "left";
+            ctx.fillText(cells[0], x + PAD_X, y + ROW_H / 2, col.w - PAD_X * 2);
+          } else {
+            ctx.textAlign = "center";
+            ctx.fillText(
+              cells[ci] ?? "",
+              x + col.w / 2,
+              y + ROW_H / 2,
+              col.w - 4,
+            );
+          }
+          ctx.fillStyle = borderColor;
+          ctx.fillRect(x + col.w - 1, y, 1, ROW_H);
+          ctx.fillStyle = fgColor;
+          x += col.w;
+        }
+      }
+
+      const blob = await canvas.convertToBlob({ type: "image/png" });
+      const url = URL.createObjectURL(blob);
+      const name =
+        model.meta?.name?.trim().replace(/[^a-z0-9\-_]+/gi, "-") || "polygraph";
+      const link = document.createElement("a");
+      link.download = `${name}-trace.png`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [
+    isExporting,
+    trace,
+    channels,
+    actors,
+    timedActorIndices,
+    model.meta?.name,
+  ]);
+
+  // --- Export SVG (direct string builder — synchronous, vector, instant) ---
+  const handleExportSvg = useCallback(() => {
+    if (!trace) return;
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name: string, fallback: string) =>
+      cs.getPropertyValue(name).trim() || fallback;
+
+    const bgColor = v("--panel", "#18181b");
+    const bgAltColor = v("--panel-muted", "#1f1f23");
+    const headerBg = v("--panel-muted", "#1f1f23");
+    const fgColor = v("--foreground", "#fafafa");
+    const mutedColor = v("--muted-strong", "#a1a1aa");
+    const borderColor = v("--panel-border", "#27272a");
+    const fireBg = v("--severity-info-bg", "#14261a");
+    const tickBg = v("--severity-warn-bg", "#26200f");
+
+    const FONT_PX = 11;
+    const FONT_FAM = `"Consolas","Courier New",monospace`;
+    const ROW_H = 22;
+    const HEADER_H = 44;
+    const PAD_X = 8;
+
+    type Col = { label: string; sub?: string; w: number };
+    const cols: Col[] = [
+      { label: "State", w: 220 },
+      ...channels.map((ch, i) => ({
+        label: `c${i + 1}`,
+        sub: `${ch.src}\u2192${ch.dst}`.slice(0, 16),
+        w: 62,
+      })),
+      { label: "\u03c4\u02e1", w: 44 },
+      ...timedActorIndices.map((idx) => ({
+        label: `a${idx + 1}`,
+        sub: (actors[idx].label ?? actors[idx].id).slice(0, 10),
+        w: 56,
+      })),
+      { label: "y\u03c3", w: 220 },
+      { label: "z\u03c3", w: 44 },
+    ];
+
+    const totalW = cols.reduce((s, c) => s + c.w, 0);
+    const totalH = HEADER_H + trace.length * ROW_H;
+
+    const esc = (s: string) =>
+      s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+    const parts: string[] = [];
+    parts.push(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">`,
+    );
+    parts.push(
+      `<style>text{font-family:${FONT_FAM};font-size:${FONT_PX}px;}</style>`,
+    );
+
+    // Full background
+    parts.push(
+      `<rect width="${totalW}" height="${totalH}" fill="${esc(bgColor)}"/>`,
+    );
+
+    // Header background
+    parts.push(
+      `<rect width="${totalW}" height="${HEADER_H}" fill="${esc(headerBg)}"/>`,
+    );
+
+    // Header cells
+    let x = 0;
+    for (const col of cols) {
+      const cx = x + col.w / 2;
+      if (col.sub) {
+        parts.push(
+          `<text x="${cx}" y="${HEADER_H / 2 - 8}" text-anchor="middle" dominant-baseline="middle" ` +
+            `fill="${esc(mutedColor)}" font-weight="bold" font-size="${FONT_PX}">${esc(col.label)}</text>`,
+        );
+        parts.push(
+          `<text x="${cx}" y="${HEADER_H / 2 + 8}" text-anchor="middle" dominant-baseline="middle" ` +
+            `fill="${esc(mutedColor)}" font-size="${FONT_PX - 1}" opacity="0.6">${esc(col.sub)}</text>`,
+        );
+      } else {
+        parts.push(
+          `<text x="${cx}" y="${HEADER_H / 2}" text-anchor="middle" dominant-baseline="middle" ` +
+            `fill="${esc(mutedColor)}" font-weight="bold" font-size="${FONT_PX}">${esc(col.label)}</text>`,
+        );
+      }
+      // Right border
+      parts.push(
+        `<line x1="${x + col.w}" y1="0" x2="${x + col.w}" y2="${HEADER_H}" stroke="${esc(borderColor)}" stroke-width="1"/>`,
+      );
+      x += col.w;
+    }
+    // Header bottom border
+    parts.push(
+      `<line x1="0" y1="${HEADER_H}" x2="${totalW}" y2="${HEADER_H}" stroke="${esc(borderColor)}" stroke-width="1"/>`,
+    );
+
+    // Rows
+    for (let r = 0; r < trace.length; r++) {
+      const step = trace[r];
+      const ry = HEADER_H + r * ROW_H;
+      const isFireRow = step.label.startsWith("fire");
+      const isTickRow = step.label.startsWith("tick");
+      const rowBg = isFireRow
+        ? fireBg
+        : isTickRow
+          ? tickBg
+          : r % 2 === 0
+            ? bgColor
+            : bgAltColor;
+
+      parts.push(
+        `<rect x="0" y="${ry}" width="${totalW}" height="${ROW_H}" fill="${esc(rowBg)}"/>`,
+      );
+      parts.push(
+        `<line x1="0" y1="${ry + ROW_H}" x2="${totalW}" y2="${ry + ROW_H}" stroke="${esc(borderColor)}" stroke-width="1"/>`,
+      );
+
+      const cells: string[] = [
+        step.label,
+        ...step.channelStates.slice(0, channels.length),
+        String(step.tau),
+        ...timedActorIndices.map((idx) => String(step.tracking[idx] ?? "0")),
+        step.firingVector.join(" "),
+        String(step.totalTicks),
+      ];
+
+      x = 0;
+      for (let ci = 0; ci < cols.length; ci++) {
+        const col = cols[ci];
+        const cy = ry + ROW_H / 2;
+        if (ci === 0) {
+          parts.push(
+            `<text x="${x + PAD_X}" y="${cy}" dominant-baseline="middle" fill="${esc(fgColor)}">${esc(cells[0])}</text>`,
+          );
+        } else {
+          parts.push(
+            `<text x="${x + col.w / 2}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="${esc(fgColor)}">${esc(cells[ci] ?? "")}</text>`,
+          );
+        }
+        parts.push(
+          `<line x1="${x + col.w}" y1="${ry}" x2="${x + col.w}" y2="${ry + ROW_H}" stroke="${esc(borderColor)}" stroke-width="1"/>`,
+        );
+        x += col.w;
+      }
+    }
+
+    parts.push(`</svg>`);
+
+    const blob = new Blob([parts.join("")], {
+      type: "image/svg+xml;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const name =
+      model.meta?.name?.trim().replace(/[^a-z0-9\-_]+/gi, "-") || "polygraph";
+    const link = document.createElement("a");
+    link.download = `${name}-trace.svg`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [trace, channels, actors, timedActorIndices, model.meta?.name]);
+  const handleExportCsv = useCallback(() => {
+    if (!trace) return;
+    const escape = (v: string) =>
+      v.includes(",") || v.includes('"') || v.includes("\n")
+        ? `"${v.replace(/"/g, '""')}"`
+        : v;
+
+    // Header row
+    const headers: string[] = [
+      "State",
+      ...channels.map((ch, i) => `c${i + 1} (${ch.src}->${ch.dst})`),
+      "tau_l",
+      ...timedActorIndices.map(
+        (idx) => `a${idx + 1} (${actors[idx].label ?? actors[idx].id})`,
+      ),
+      "y_sigma",
+      "z_sigma",
+    ];
+
+    const rows = trace.map((step) => {
+      const stateLabel = step.label.startsWith("s")
+        ? `s${step.stateIndex}`
+        : `s${step.stateIndex} = ${step.label}`;
+      const cols: string[] = [
+        stateLabel,
+        ...step.channelStates.slice(0, channels.length).map(String),
+        String(step.tau),
+        ...timedActorIndices.map((idx) => String(step.tracking[idx] ?? 0)),
+        `[${step.firingVector.join("; ")}]`,
+        String(step.totalTicks),
+      ];
+      return cols.map(escape).join(",");
+    });
+
+    const csv = [headers.map(escape).join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const name =
+      model.meta?.name?.trim().replace(/[^a-z0-9\-_]+/gi, "-") || "polygraph";
+    const link = document.createElement("a");
+    link.download = `${name}-trace.csv`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [trace, channels, actors, timedActorIndices, model.meta?.name]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      exportPng: handleExportPng,
+      exportSvg: handleExportSvg,
+      exportCsv: handleExportCsv,
+    }),
+    [handleExportPng, handleExportSvg, handleExportCsv],
+  );
 
   if (!trace || trace.length === 0) {
     return (
@@ -19,79 +430,107 @@ export default function DetailedTraceView({
     );
   }
 
-  const channels = model.channels;
-  const actors = model.actors;
-  const timedActorIndices = actors
-    .map((a, i) => (a.timed ? i : -1))
-    .filter((i) => i >= 0);
-
   return (
-    <div className="overflow-auto rounded-xl border border-[color:var(--panel-border)]">
-      <table className="w-full border-collapse text-xs font-mono">
-        <thead>
-          <tr className="bg-[color:var(--panel-muted)]">
-            {/* State label */}
-            <th className="sticky left-0 z-10 border-b border-r border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] px-3 py-2 text-left font-semibold text-[color:var(--muted-strong)]">
-              State
-            </th>
-            {/* Channel states */}
-            {channels.map((ch, i) => (
-              <th
-                key={`ch-${ch.id}`}
-                className="border-b border-r border-[color:var(--panel-border)] px-2 py-2 text-center font-semibold text-[color:var(--muted-strong)]"
-                title={`${ch.id}: ${ch.src} → ${ch.dst}`}
+    <div className="flex flex-col gap-3">
+      {/* Table */}
+      <div className="relative">
+        {isExporting && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[color:var(--panel)]/80 backdrop-blur-sm">
+            <div className="flex items-center gap-2.5 rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel)] px-4 py-2 text-xs font-semibold text-[color:var(--muted-strong)] shadow-lg">
+              <svg
+                className="h-3.5 w-3.5 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
               >
-                <div>c<sub>{i + 1}</sub></div>
-                <div className="text-[9px] font-normal text-[color:var(--muted)] leading-tight">
-                  {ch.src}→{ch.dst}
-                </div>
-              </th>
-            ))}
-            {/* τ^l */}
-            <th className="border-b border-r border-[color:var(--panel-border)] px-3 py-2 text-center font-semibold text-[color:var(--muted-strong)]">
-              τ<sup>l</sup>
-            </th>
-            {/* a_i for each timed actor */}
-            {timedActorIndices.map((idx) => (
-              <th
-                key={`a-${idx}`}
-                className="border-b border-r border-[color:var(--panel-border)] px-2 py-2 text-center font-semibold text-[color:var(--muted-strong)]"
-                title={actors[idx].label ?? actors[idx].id}
-              >
-                <div>a<sub>{idx + 1}</sub></div>
-                <div className="text-[9px] font-normal text-[color:var(--muted)] leading-tight">
-                  {actors[idx].label ?? actors[idx].id}
-                </div>
-              </th>
-            ))}
-            {/* y^σ */}
-            <th className="border-b border-r border-[color:var(--panel-border)] px-3 py-2 text-center font-semibold text-[color:var(--muted-strong)]">
-              y<sup>σ</sup>
-            </th>
-            {/* z^σ */}
-            <th className="border-b border-[color:var(--panel-border)] px-3 py-2 text-center font-semibold text-[color:var(--muted-strong)]">
-              z<sup>σ</sup>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {trace.map((step, rowIdx) => (
-            <TraceRow
-              key={step.stateIndex}
-              step={step}
-              channelCount={channels.length}
-              timedActorIndices={timedActorIndices}
-              actorCount={actors.length}
-              isEven={rowIdx % 2 === 0}
-              isFireRow={step.label.startsWith("fire")}
-              isTickRow={step.label.startsWith("tick")}
-            />
-          ))}
-        </tbody>
-      </table>
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                />
+              </svg>
+              Rendering PNG…
+            </div>
+          </div>
+        )}
+        <div
+          ref={tableRef}
+          className="overflow-auto rounded-xl border border-[color:var(--panel-border)]"
+        >
+          <table className="w-full border-collapse text-xs font-mono">
+            <thead>
+              <tr className="bg-[color:var(--panel-muted)]">
+                <th className="sticky left-0 z-10 border-b border-r border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] px-3 py-2 text-left font-semibold text-[color:var(--muted-strong)]">
+                  State
+                </th>
+                {channels.map((ch, i) => (
+                  <th
+                    key={`ch-${ch.id}`}
+                    className="border-b border-r border-[color:var(--panel-border)] px-2 py-2 text-center font-semibold text-[color:var(--muted-strong)]"
+                    title={`${ch.id}: ${ch.src} → ${ch.dst}`}
+                  >
+                    <div>
+                      c<sub>{i + 1}</sub>
+                    </div>
+                    <div className="text-[9px] font-normal leading-tight text-[color:var(--muted)]">
+                      {ch.src}→{ch.dst}
+                    </div>
+                  </th>
+                ))}
+                <th className="border-b border-r border-[color:var(--panel-border)] px-3 py-2 text-center font-semibold text-[color:var(--muted-strong)]">
+                  τ<sup>l</sup>
+                </th>
+                {timedActorIndices.map((idx) => (
+                  <th
+                    key={`a-${idx}`}
+                    className="border-b border-r border-[color:var(--panel-border)] px-2 py-2 text-center font-semibold text-[color:var(--muted-strong)]"
+                    title={actors[idx].label ?? actors[idx].id}
+                  >
+                    <div>
+                      a<sub>{idx + 1}</sub>
+                    </div>
+                    <div className="text-[9px] font-normal leading-tight text-[color:var(--muted)]">
+                      {actors[idx].label ?? actors[idx].id}
+                    </div>
+                  </th>
+                ))}
+                <th className="border-b border-r border-[color:var(--panel-border)] px-3 py-2 text-center font-semibold text-[color:var(--muted-strong)]">
+                  y<sup>σ</sup>
+                </th>
+                <th className="border-b border-[color:var(--panel-border)] px-3 py-2 text-center font-semibold text-[color:var(--muted-strong)]">
+                  z<sup>σ</sup>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {trace.map((step, rowIdx) => (
+                <TraceRow
+                  key={step.stateIndex}
+                  step={step}
+                  channelCount={channels.length}
+                  timedActorIndices={timedActorIndices}
+                  actorCount={actors.length}
+                  isEven={rowIdx % 2 === 0}
+                  isFireRow={step.label.startsWith("fire")}
+                  isTickRow={step.label.startsWith("tick")}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
-}
+});
+
+export default DetailedTraceView;
 
 function TraceRow({
   step,

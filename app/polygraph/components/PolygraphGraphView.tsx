@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import ReactFlow, {
   MarkerType,
   Position,
@@ -14,13 +21,16 @@ import "reactflow/dist/style.css";
 import { toJpeg, toPng, toSvg } from "html-to-image";
 import { usePolygraphStore } from "../store";
 import type { PolyGraphModel } from "@/lib/polygraph/types";
-import { defaultPosition } from "../graphLayout";
+import { computeAutoLayout, defaultPosition } from "../graphLayout";
 
-export default function PolygraphGraphView({
-  model,
-}: {
-  model: PolyGraphModel;
-}) {
+export interface PolygraphGraphViewHandle {
+  exportAs: (format: "svg" | "png" | "jpg") => Promise<void>;
+}
+
+const PolygraphGraphView = forwardRef<
+  PolygraphGraphViewHandle,
+  { model: PolyGraphModel }
+>(function PolygraphGraphView({ model }, ref) {
   const actorPositions = usePolygraphStore((state) => state.ui.actorPositions);
   const selectedActorId = usePolygraphStore(
     (state) => state.ui.selectedActorId,
@@ -31,6 +41,9 @@ export default function PolygraphGraphView({
   const flowRef = useRef<ReactFlowInstance | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Compute automatic top-to-bottom layout as fallback when no manual positions set
+  const autoLayout = useMemo(() => computeAutoLayout(model), [model]);
 
   const nodes = useMemo<Node[]>(() => {
     return model.actors.map((actor, idx) => ({
@@ -53,9 +66,12 @@ export default function PolygraphGraphView({
           </div>
         ),
       },
-      position: actorPositions?.[actor.id] ?? defaultPosition(idx),
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
+      position:
+        actorPositions?.[actor.id] ??
+        autoLayout[actor.id] ??
+        defaultPosition(idx),
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
       selectable: false,
       draggable: false,
       style: {
@@ -108,7 +124,6 @@ export default function PolygraphGraphView({
       },
     }));
   }, [model.channels, selectedChannelId]);
-  const isExportDisabled = isExporting || nodes.length === 0;
 
   const handleExport = useCallback(
     async (format: "svg" | "png" | "jpg") => {
@@ -186,40 +201,13 @@ export default function PolygraphGraphView({
     [isExporting, model.meta?.name, nodes],
   );
 
+  useImperativeHandle(ref, () => ({ exportAs: handleExport }), [handleExport]);
+
   return (
     <div
       ref={containerRef}
-      className="relative h-[280px] min-h-[240px] w-full overflow-hidden rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
+      className="relative h-[600px] min-h-[400px] w-full overflow-hidden rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
     >
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted-strong)] shadow">
-        <span>Export</span>
-        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-          <button
-            type="button"
-            className="rounded-full border border-[color:var(--panel-border)] px-3 py-1 transition hover:border-[color:var(--muted)]"
-            onClick={() => handleExport("svg")}
-            disabled={isExportDisabled}
-          >
-            SVG
-          </button>
-          <button
-            type="button"
-            className="rounded-full border border-[color:var(--panel-border)] px-3 py-1 transition hover:border-[color:var(--muted)]"
-            onClick={() => handleExport("png")}
-            disabled={isExportDisabled}
-          >
-            PNG
-          </button>
-          <button
-            type="button"
-            className="rounded-full border border-[color:var(--panel-border)] px-3 py-1 transition hover:border-[color:var(--muted)]"
-            onClick={() => handleExport("jpg")}
-            disabled={isExportDisabled}
-          >
-            JPG
-          </button>
-        </div>
-      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -236,4 +224,6 @@ export default function PolygraphGraphView({
       />
     </div>
   );
-}
+});
+
+export default PolygraphGraphView;

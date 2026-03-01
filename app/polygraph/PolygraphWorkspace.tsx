@@ -12,6 +12,8 @@ import VisualizationPanel from "./components/VisualizationPanel";
 import TerminalPanel from "./components/TerminalPanel";
 import { usePolygraphStore } from "./store";
 
+type Tab = "editor" | "results" | "diagnostics";
+
 const isRenderableModel = (value: unknown): value is PolyGraphModel =>
   Boolean(value) &&
   typeof value === "object" &&
@@ -42,21 +44,10 @@ export default function PolygraphWorkspace() {
   const pendingRunRef = useRef<"validate" | "execute" | null>(null);
   const lastExecutionModelRef = useRef<PolyGraphModel | null>(null);
   const [status, setStatus] = useState<"idle" | "running">("idle");
-  const [terminalHeight, setTerminalHeight] = useState(280);
   const [cycles, setCycles] = useState(1);
-  const [editorWidthPx, setEditorWidthPx] = useState<number | null>(null);
-  const splitRef = useRef<HTMLDivElement | null>(null);
-  const splitDragRef = useRef<{
-    left: number;
-    min: number;
-    max: number;
-  } | null>(null);
-  const splitHandleWidth = 8;
-  const minEditorWidth = 500;
-  const minResultWidth = 280;
-  const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(
-    null,
-  );
+  const [activeTab, setActiveTab] = useState<Tab>("editor");
+  const [terminalSeen, setTerminalSeen] = useState(0);
+  const diagnostics = usePolygraphStore((state) => state.diagnostics);
 
   useEffect(() => {
     const worker = new Worker(new URL("./worker.ts", import.meta.url), {
@@ -106,101 +97,6 @@ export default function PolygraphWorkspace() {
     document.documentElement.dataset.theme = "light";
     document.documentElement.style.colorScheme = "light";
   }, []);
-
-  useEffect(() => {
-    const updateHeight = (clientY: number) => {
-      if (!dragStateRef.current) return;
-      const delta = dragStateRef.current.startY - clientY;
-      const minHeight = 200;
-      const maxHeight = Math.max(
-        minHeight,
-        Math.round(window.innerHeight * 0.55),
-      );
-      const nextHeight = dragStateRef.current.startHeight + delta;
-      setTerminalHeight(Math.min(maxHeight, Math.max(minHeight, nextHeight)));
-    };
-
-    const handlePointerMove = (event: PointerEvent) =>
-      updateHeight(event.clientY);
-    const handleMouseMove = (event: MouseEvent) => updateHeight(event.clientY);
-
-    const stopDrag = () => {
-      if (dragStateRef.current) {
-        dragStateRef.current = null;
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      }
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopDrag);
-    window.addEventListener("pointercancel", stopDrag);
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", stopDrag);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopDrag);
-      window.removeEventListener("pointercancel", stopDrag);
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", stopDrag);
-    };
-  }, []);
-
-  useEffect(() => {
-    const updateWidth = (clientX: number) => {
-      if (!splitDragRef.current) return;
-      const next = clientX - splitDragRef.current.left;
-      const clamped = Math.min(
-        splitDragRef.current.max,
-        Math.max(splitDragRef.current.min, next),
-      );
-      setEditorWidthPx(clamped);
-    };
-
-    const handlePointerMove = (event: PointerEvent) =>
-      updateWidth(event.clientX);
-
-    const stopDrag = () => {
-      if (splitDragRef.current) {
-        splitDragRef.current = null;
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      }
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopDrag);
-    window.addEventListener("pointercancel", stopDrag);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopDrag);
-      window.removeEventListener("pointercancel", stopDrag);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!splitRef.current) return;
-    const updateInitial = () => {
-      if (!splitRef.current) return;
-      const rect = splitRef.current.getBoundingClientRect();
-      const maxEditor = Math.max(
-        minEditorWidth,
-        rect.width - minResultWidth - splitHandleWidth,
-      );
-      setEditorWidthPx((prev) => {
-        const fallback = Math.round(rect.width * 0.55);
-        const next = prev ?? fallback;
-        return Math.min(maxEditor, Math.max(minEditorWidth, next));
-      });
-    };
-
-    updateInitial();
-    const observer = new ResizeObserver(updateInitial);
-    observer.observe(splitRef.current);
-    return () => observer.disconnect();
-  }, [splitHandleWidth]);
 
   const runVerification = useCallback(
     (computeExecution: boolean) => {
@@ -260,107 +156,90 @@ export default function PolygraphWorkspace() {
         options: { computeExecution, cycles },
       });
     },
-    [jsonText, cycles, setDiagnostics, setExecution, setExecutionModel, setModel],
+    [
+      jsonText,
+      cycles,
+      setDiagnostics,
+      setExecution,
+      setExecutionModel,
+      setModel,
+    ],
   );
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-transparent p-2 text-[color:var(--foreground)]">
-      <div
-        className="grid h-full min-h-0 gap-0"
-        style={{ gridTemplateRows: `minmax(0, 1fr) 12px ${terminalHeight}px` }}
-      >
-        <main
-          className="animate-float-in min-h-0 overflow-hidden rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm"
-          style={{ animationDelay: "40ms" }}
-        >
-          <div
-            ref={splitRef}
-            className="flex h-full min-h-0 flex-col lg:flex-row"
-          >
-            <div
-              className="h-full min-h-0 min-w-0 overflow-hidden"
-              style={{
-                width: editorWidthPx ? `${editorWidthPx}px` : "55%",
-                flex: "0 0 auto",
+    <div className="h-[100dvh] overflow-hidden bg-[color:var(--panel)] text-[color:var(--foreground)]">
+      <div className="animate-float-in flex h-full min-h-0 flex-col overflow-hidden">
+        {/* Toolbar */}
+        <div className="shrink-0 border-b border-[color:var(--panel-border)] px-4 py-3">
+          <Toolbar
+            onValidate={() => runVerification(false)}
+            onExecute={() => runVerification(true)}
+            onReset={reset}
+            status={status}
+            cycles={cycles}
+            onCyclesChange={setCycles}
+          />
+          {status === "running" && (
+            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+              Verifying… running in worker
+            </p>
+          )}
+        </div>
+
+        {/* Tab bar */}
+        <div className="shrink-0 flex items-end gap-1 border-b border-[color:var(--panel-border)] px-4 bg-[color:var(--panel)]">
+          {(
+            [
+              { key: "editor", label: "Editor" },
+              { key: "results", label: "Results" },
+              {
+                key: "diagnostics",
+                label: "Terminal",
+                badge:
+                  Math.max(0, diagnostics.length - terminalSeen) || undefined,
+              },
+            ] as { key: Tab; label: string; badge?: number }[]
+          ).map(({ key, label, badge }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setActiveTab(key);
+                if (key === "diagnostics") setTerminalSeen(diagnostics.length);
               }}
+              className={`relative flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none ${
+                activeTab === key
+                  ? "border-[color:var(--accent)] text-[color:var(--foreground)]"
+                  : "border-transparent text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+              }`}
             >
-              <div className="flex h-full min-h-0 flex-col border-b border-[color:var(--panel-border)] pt-4 lg:border-b-0 lg:border-r-0">
-                <div className="mb-4 px-4">
-                  <Toolbar
-                    onValidate={() => runVerification(false)}
-                    onExecute={() => runVerification(true)}
-                    onReset={reset}
-                    status={status}
-                    cycles={cycles}
-                    onCyclesChange={setCycles}
-                  />
-                  {status === "running" && (
-                    <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                      Verifying... running in worker
-                    </p>
-                  )}
-                </div>
-                <div className="min-h-0 flex-1">
-                  <EditorPanel />
-                </div>
-              </div>
-            </div>
-            <div
-              className="hidden cursor-col-resize bg-[color:var(--panel-border)] lg:block"
-              onPointerDown={(event) => {
-                event.preventDefault();
-                if (event.currentTarget.setPointerCapture) {
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                }
-                if (!splitRef.current) return;
-                const rect = splitRef.current.getBoundingClientRect();
-                const maxEditor = Math.max(
-                  minEditorWidth,
-                  rect.width - minResultWidth - splitHandleWidth,
-                );
-                splitDragRef.current = {
-                  left: rect.left,
-                  min: minEditorWidth,
-                  max: maxEditor,
-                };
-                setEditorWidthPx(
-                  (prev) => prev ?? Math.round(rect.width * 0.55),
-                );
-                document.body.style.cursor = "col-resize";
-                document.body.style.userSelect = "none";
-              }}
-              style={{ width: splitHandleWidth }}
-              role="separator"
-              aria-label="Resize editor panel"
-              aria-orientation="vertical"
-            />
-            <div className="h-full min-h-0 min-w-0 flex-1 border-t border-[color:var(--panel-border)] lg:border-t-0">
-              <div className="h-full min-h-0 pt-4">
-                <VisualizationPanel />
-              </div>
-            </div>
+              {label}
+              {badge !== undefined && (
+                <span className="rounded-full bg-[color:var(--severity-error-bg)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-[color:var(--severity-error-text)]">
+                  {badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <div
+            className={`h-full min-h-0 pt-4 ${activeTab === "editor" ? "block" : "hidden"}`}
+          >
+            <EditorPanel />
           </div>
-        </main>
-        <div
-          className="cursor-row-resize touch-none bg-[color:var(--panel-border)]"
-          onPointerDown={(event) => {
-            event.preventDefault();
-            if (event.currentTarget.setPointerCapture) {
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }
-            dragStateRef.current = {
-              startY: event.clientY,
-              startHeight: terminalHeight,
-            };
-            document.body.style.cursor = "row-resize";
-            document.body.style.userSelect = "none";
-          }}
-          role="separator"
-          aria-label="Resize terminal"
-          aria-orientation="horizontal"
-        />
-        <div className="animate-float-in min-h-0 overflow-hidden rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel)] shadow-sm">
-          <TerminalPanel variant="embedded" />
+          <div
+            className={`h-full min-h-0 pt-4 ${activeTab === "results" ? "block" : "hidden"}`}
+          >
+            <VisualizationPanel />
+          </div>
+          <div
+            className={`h-full min-h-0 ${activeTab === "diagnostics" ? "block" : "hidden"}`}
+          >
+            <TerminalPanel variant="embedded" />
+          </div>
         </div>
       </div>
     </div>
