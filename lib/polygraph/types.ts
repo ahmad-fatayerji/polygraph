@@ -36,6 +36,9 @@ export type ExecutionResult = {
 
 export type PolyGraphModel = {
   meta?: { name?: string; version?: number };
+  layout?: {
+    actors?: Record<string, { x: number; y: number }>;
+  };
   actors: Array<{
     id: string;
     label?: string;
@@ -43,6 +46,7 @@ export type PolyGraphModel = {
     freq?: number; // Hz (optional if period is provided)
     period?: number; // milliseconds (optional if freq is provided)
     phase?: number; // milliseconds, optional
+    // Legacy position field kept for backward compatibility when loading older JSON.
     ui?: { x: number; y: number };
   }>;
   channels: Array<{

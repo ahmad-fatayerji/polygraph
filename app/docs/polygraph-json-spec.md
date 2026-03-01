@@ -11,11 +11,12 @@
 
 1. [Top-Level Structure](#top-level-structure)
 2. [Meta Object](#meta-object)
-3. [Actors Array](#actors-array)
+3. [Layout Object (Optional)](#layout-object-optional)
+4. [Actors Array](#actors-array)
    - [Timed Actors](#timed-actors)
    - [Untimed Actors](#untimed-actors)
-4. [Channels Array](#channels-array)
-5. [Rational Number Format](#rational-number-format)
+5. [Channels Array](#channels-array)
+6. [Rational Number Format](#rational-number-format)
    - [Valid Formats](#valid-formats)
    - [Rules](#rules)
 6. [Verification Pipeline](#verification-pipeline)
@@ -36,11 +37,12 @@
 
 ## Top-Level Structure
 
-A PolyGraph model is a JSON object with three keys:
+A PolyGraph model is a JSON object with these top-level keys:
 
 ```json
 {
   "meta": { ... },
+  "layout": { ... },
   "actors": [ ... ],
   "channels": [ ... ]
 }
@@ -49,6 +51,7 @@ A PolyGraph model is a JSON object with three keys:
 | Key        | Type   | Required | Description                         |
 | ---------- | ------ | -------- | ----------------------------------- |
 | `meta`     | object | No       | Optional metadata (name, version).  |
+| `layout`   | object | No       | Optional visual node positions.     |
 | `actors`   | array  | **Yes**  | List of actor definitions.          |
 | `channels` | array  | **Yes**  | List of channel (edge) definitions. |
 
@@ -69,6 +72,31 @@ Optional metadata about the model. Has no effect on verification.
 | --------- | ------ | -------- | -------------------------- |
 | `name`    | string | No       | Human-readable model name. |
 | `version` | number | No       | Schema version number.     |
+
+---
+
+## Layout Object (Optional)
+
+`layout` stores visual coordinates for actors. It does not affect verification.
+
+```json
+"layout": {
+  "actors": {
+    "cam": { "x": 80, "y": 60 },
+    "rad": { "x": 80, "y": 170 },
+    "lid": { "x": 80, "y": 280 },
+    "fus": { "x": 300, "y": 170 },
+    "disp": { "x": 520, "y": 170 }
+  }
+}
+```
+
+| Field            | Type   | Required | Description                                    |
+| ---------------- | ------ | -------- | ---------------------------------------------- |
+| `layout.actors`  | object | No       | Map of actor id -> `{ x, y }` node positions. |
+| `x` / `y`        | number | Yes      | Canvas coordinates used by the visual editor. |
+
+Unknown actor IDs in `layout.actors` are ignored.
 
 ---
 
@@ -326,6 +354,14 @@ A simple drone control loop with two timed sensors, an untimed estimator, a time
 ```json
 {
   "meta": { "name": "PX4 Control Loop", "version": 1 },
+  "layout": {
+    "actors": {
+      "imu": { "x": 80, "y": 60 },
+      "est": { "x": 300, "y": 60 },
+      "ctrl": { "x": 520, "y": 60 },
+      "log": { "x": 740, "y": 60 }
+    }
+  },
   "actors": [
     { "id": "imu", "label": "IMU", "timed": true, "freq": 200, "phase": 0 },
     { "id": "est", "label": "Estimator", "timed": false },
@@ -637,6 +673,9 @@ For programmatic use, here is the canonical TypeScript type:
 ```typescript
 type PolyGraphModel = {
   meta?: { name?: string; version?: number };
+  layout?: {
+    actors?: Record<string, { x: number; y: number }>;
+  };
   actors: Array<{
     id: string;
     label?: string;

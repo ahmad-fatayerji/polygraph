@@ -15,11 +15,12 @@ export const DOC_MARKDOWN = `# PolyGraph JSON Model Specification
 
 1. [Top-Level Structure](#top-level-structure)
 2. [Meta Object](#meta-object)
-3. [Actors Array](#actors-array)
+3. [Layout Object (Optional)](#layout-object-optional)
+4. [Actors Array](#actors-array)
    - [Timed Actors](#timed-actors)
    - [Untimed Actors](#untimed-actors)
-4. [Channels Array](#channels-array)
-5. [Rational Number Format](#rational-number-format)
+5. [Channels Array](#channels-array)
+6. [Rational Number Format](#rational-number-format)
    - [Valid Formats](#valid-formats)
    - [Rules](#rules)
 6. [Verification Pipeline](#verification-pipeline)
@@ -40,11 +41,12 @@ export const DOC_MARKDOWN = `# PolyGraph JSON Model Specification
 
 ## Top-Level Structure
 
-A PolyGraph model is a JSON object with three keys:
+A PolyGraph model is a JSON object with these top-level keys:
 
 \`\`\`json
 {
   "meta": { ... },
+  "layout": { ... },
   "actors": [ ... ],
   "channels": [ ... ]
 }
@@ -53,6 +55,7 @@ A PolyGraph model is a JSON object with three keys:
 | Key        | Type   | Required | Description                         |
 | ---------- | ------ | -------- | ----------------------------------- |
 | \`meta\`     | object | No       | Optional metadata (name, version).  |
+| \`layout\`   | object | No       | Optional visual node positions.     |
 | \`actors\`   | array  | **Yes**  | List of actor definitions.          |
 | \`channels\` | array  | **Yes**  | List of channel (edge) definitions. |
 
@@ -73,6 +76,31 @@ Optional metadata about the model. Has no effect on verification.
 | --------- | ------ | -------- | -------------------------- |
 | \`name\`    | string | No       | Human-readable model name. |
 | \`version\` | number | No       | Schema version number.     |
+
+---
+
+## Layout Object (Optional)
+
+\`layout\` stores visual coordinates for actors. It does not affect verification.
+
+\`\`\`json
+"layout": {
+  "actors": {
+    "cam": { "x": 80, "y": 60 },
+    "rad": { "x": 80, "y": 170 },
+    "lid": { "x": 80, "y": 280 },
+    "fus": { "x": 300, "y": 170 },
+    "disp": { "x": 520, "y": 170 }
+  }
+}
+\`\`\`
+
+| Field            | Type   | Required | Description                                    |
+| ---------------- | ------ | -------- | ---------------------------------------------- |
+| \`layout.actors\`  | object | No       | Map of actor id -> \`{ x, y }\` node positions. |
+| \`x\` / \`y\`        | number | Yes      | Canvas coordinates used by the visual editor. |
+
+Unknown actor IDs in \`layout.actors\` are ignored.
 
 ---
 
@@ -289,16 +317,16 @@ The verifier produces diagnostics at three severity levels.
 
 Errors block verification from proceeding to the next level.
 
-| Code                 | Description                                                    |
-| -------------------- | -------------------------------------------------------------- |
-| \`E_PARSE_RATIONAL\`     | A rate or init value is not a valid rational number.                 |
-| \`E_RATE_SIGN\`          | \`rateSrc\` must be positive, \`rateDst\` must be negative.              |
-| \`E_RATE_INTEGER_RULE\`  | At least one rate per channel must be an integer.                    |
-| \`E_INIT_INVALID\`       | Initial tokens are negative or not a valid multiple of \`1/q\`.        |
-| \`E_REF_MISSING\`      | A channel references a non-existent actor.                     |
-| \`E_TOPOLOGY_INVALID\` | Structural issues: missing IDs, duplicate IDs, invalid timing. |
-| \`E_INCONSISTENT\`     | No valid repetition vector exists (unbounded memory).          |
-| \`E_NOT_LIVE\`         | Deadlock detected during witness execution construction.       |
+| Code                  | Description                                                    |
+| --------------------- | -------------------------------------------------------------- |
+| \`E_PARSE_RATIONAL\`    | A rate or init value is not a valid rational number.           |
+| \`E_RATE_SIGN\`         | \`rateSrc\` must be positive, \`rateDst\` must be negative.        |
+| \`E_RATE_INTEGER_RULE\` | At least one rate per channel must be an integer.              |
+| \`E_INIT_INVALID\`      | Initial tokens are negative or not a valid multiple of \`1/q\`.  |
+| \`E_REF_MISSING\`       | A channel references a non-existent actor.                     |
+| \`E_TOPOLOGY_INVALID\`  | Structural issues: missing IDs, duplicate IDs, invalid timing. |
+| \`E_INCONSISTENT\`      | No valid repetition vector exists (unbounded memory).          |
+| \`E_NOT_LIVE\`          | Deadlock detected during witness execution construction.       |
 
 ### Warnings
 
@@ -330,25 +358,61 @@ A simple drone control loop with two timed sensors, an untimed estimator, a time
 \`\`\`json
 {
   "meta": { "name": "PX4 Control Loop", "version": 1 },
+  "layout": {
+    "actors": {
+      "imu": { "x": 80, "y": 60 },
+      "est": { "x": 300, "y": 60 },
+      "ctrl": { "x": 520, "y": 60 },
+      "log": { "x": 740, "y": 60 }
+    }
+  },
   "actors": [
-    { "id": "imu",  "label": "IMU",        "timed": true,  "freq": 200, "phase": 0 },
-    { "id": "est",  "label": "Estimator",   "timed": false },
-    { "id": "ctrl", "label": "Controller",  "timed": true,  "freq": 100, "phase": 0 },
-    { "id": "log",  "label": "Logger",      "timed": false }
+    { "id": "imu", "label": "IMU", "timed": true, "freq": 200, "phase": 0 },
+    { "id": "est", "label": "Estimator", "timed": false },
+    {
+      "id": "ctrl",
+      "label": "Controller",
+      "timed": true,
+      "freq": 100,
+      "phase": 0
+    },
+    { "id": "log", "label": "Logger", "timed": false }
   ],
   "channels": [
-    { "id": "c1", "src": "imu",  "dst": "est",  "rateSrc": "1",   "rateDst": "-1", "init": "0"   },
-    { "id": "c2", "src": "est",  "dst": "ctrl", "rateSrc": "1/2", "rateDst": "-1", "init": "1/2" },
-    { "id": "c3", "src": "ctrl", "dst": "log",  "rateSrc": "1/2", "rateDst": "-1", "init": "1/2" }
+    {
+      "id": "c1",
+      "src": "imu",
+      "dst": "est",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c2",
+      "src": "est",
+      "dst": "ctrl",
+      "rateSrc": "1/2",
+      "rateDst": "-1",
+      "init": "1/2"
+    },
+    {
+      "id": "c3",
+      "src": "ctrl",
+      "dst": "log",
+      "rateSrc": "1/2",
+      "rateDst": "-1",
+      "init": "1/2"
+    }
   ]
 }
 \`\`\`
 
 **Explanation:**
+
 - The IMU fires at 200 Hz, the controller at 100 Hz.
 - The estimator and logger are untimed — they fire when input tokens are available.
-- Channel c2 uses fractional rates: the estimator produces 1/2 token per firing, the controller consumes 1 token. This accounts for the 2:1 frequency ratio (200 Hz → 100 Hz). The channel starts with 1/2 token to pre-load the pipeline.
-- Channel c3 is similar: the controller produces 1/2 token per firing, the logger consumes 1 full token.
+- Channel \`c2\` uses fractional rates: the estimator produces 1/2 token per firing, the controller consumes 1 token. This accounts for the 2:1 frequency ratio (200 Hz → 100 Hz). The channel starts with 1/2 token to pre-load the pipeline.
+- Channel \`c3\` is similar: the controller produces 1/2 token per firing, the logger consumes 1 full token.
 
 ### ADAS System
 
@@ -358,47 +422,177 @@ A more complex Advanced Driver Assistance System with timed sensors, untimed pro
 {
   "meta": { "name": "ADAS System Model", "version": 1 },
   "actors": [
-    { "id": "ldr", "label": "Lidar",              "timed": true,  "period": 25 },
-    { "id": "odm", "label": "Odometer",            "timed": true,  "period": 100 },
-    { "id": "lcm", "label": "Left Camera",         "timed": true,  "period": 100 },
-    { "id": "rcm", "label": "Right Camera",        "timed": true,  "period": 100 },
-    { "id": "obd", "label": "Obstacle Detection",  "timed": false },
-    { "id": "tsd", "label": "Traffic Signs",       "timed": false },
-    { "id": "tld", "label": "Traffic Lanes",       "timed": false },
-    { "id": "pdd", "label": "Pedestrian Det.",      "timed": false },
-    { "id": "rmd", "label": "Road Mask",           "timed": false },
-    { "id": "dmd", "label": "Depth Map",           "timed": false },
-    { "id": "apd", "label": "Adv. Pedestrian",     "timed": false },
-    { "id": "spc", "label": "Speed Control",       "timed": false },
-    { "id": "ebs", "label": "Emergency Brake",     "timed": true,  "period": 100, "phase": 20 },
-    { "id": "ifd", "label": "Info Display",        "timed": true,  "period": 100, "phase": 50 }
+    { "id": "ldr", "label": "Lidar (LDR)", "timed": true, "period": 25 },
+    { "id": "odm", "label": "Odometer (ODM)", "timed": true, "period": 100 },
+    { "id": "lcm", "label": "Left Camera (LCM)", "timed": true, "period": 100 },
+    {
+      "id": "rcm",
+      "label": "Right Camera (RCM)",
+      "timed": true,
+      "period": 100
+    },
+    { "id": "obd", "label": "Obstacles Detection (OBD)", "timed": false },
+    { "id": "tsd", "label": "Traffic Sign Detection", "timed": false },
+    { "id": "tld", "label": "Traffic Lane Detection", "timed": false },
+    { "id": "pdd", "label": "Pedestrian Detection", "timed": false },
+    { "id": "rmd", "label": "Road Mask Detection", "timed": false },
+    { "id": "dmd", "label": "Depth Map Detection", "timed": false },
+    { "id": "apd", "label": "Adv. Pedestrian Detection", "timed": false },
+    { "id": "spc", "label": "Speed Control", "timed": false },
+    {
+      "id": "ebs",
+      "label": "Emergency Braking (EBS)",
+      "timed": true,
+      "period": 100,
+      "phase": 20
+    },
+    {
+      "id": "ifd",
+      "label": "Information Display (IFD)",
+      "timed": true,
+      "period": 100,
+      "phase": 50
+    }
   ],
   "channels": [
-    { "id": "c_ldr_obd", "src": "ldr", "dst": "obd", "rateSrc": "1/4", "rateDst": "-1", "init": "3/4" },
-    { "id": "c_obd_spc", "src": "obd", "dst": "spc", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_odm_spc", "src": "odm", "dst": "spc", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_lcm_tsd", "src": "lcm", "dst": "tsd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_tsd_spc", "src": "tsd", "dst": "spc", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_lcm_tld", "src": "lcm", "dst": "tld", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_lcm_rmd", "src": "lcm", "dst": "rmd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_lcm_pdd", "src": "lcm", "dst": "pdd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_rcm_rmd", "src": "rcm", "dst": "rmd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_rcm_dmd", "src": "rcm", "dst": "dmd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_rmd_apd", "src": "rmd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_dmd_apd", "src": "dmd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_pdd_apd", "src": "pdd", "dst": "apd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_apd_ifd", "src": "apd", "dst": "ifd", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_spc_ebs", "src": "spc", "dst": "ebs", "rateSrc": "1",   "rateDst": "-1", "init": "0" },
-    { "id": "c_ebs_ifd", "src": "ebs", "dst": "ifd", "rateSrc": "1",   "rateDst": "-1", "init": "0" }
+    {
+      "id": "c_ldr_obd",
+      "src": "ldr",
+      "dst": "obd",
+      "rateSrc": "1/4",
+      "rateDst": "-1",
+      "init": "3/4"
+    },
+    {
+      "id": "c_obd_spc",
+      "src": "obd",
+      "dst": "spc",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_odm_spc",
+      "src": "odm",
+      "dst": "spc",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_lcm_tsd",
+      "src": "lcm",
+      "dst": "tsd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_tsd_spc",
+      "src": "tsd",
+      "dst": "spc",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_lcm_tld",
+      "src": "lcm",
+      "dst": "tld",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_lcm_rmd",
+      "src": "lcm",
+      "dst": "rmd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_lcm_pdd",
+      "src": "lcm",
+      "dst": "pdd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_rcm_rmd",
+      "src": "rcm",
+      "dst": "rmd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_rcm_dmd",
+      "src": "rcm",
+      "dst": "dmd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_rmd_apd",
+      "src": "rmd",
+      "dst": "apd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_dmd_apd",
+      "src": "dmd",
+      "dst": "apd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_pdd_apd",
+      "src": "pdd",
+      "dst": "apd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_apd_ifd",
+      "src": "apd",
+      "dst": "ifd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_spc_ebs",
+      "src": "spc",
+      "dst": "ebs",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    },
+    {
+      "id": "c_ebs_ifd",
+      "src": "ebs",
+      "dst": "ifd",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "0"
+    }
   ]
 }
 \`\`\`
 
 **Key patterns in this example:**
+
 - **Phased timed actors:** \`ebs\` has \`phase: 20\` (fires 20 ms into each period), \`ifd\` has \`phase: 50\`.
 - **Fractional rate with initial tokens:** \`c_ldr_obd\` uses \`rateSrc: "1/4"\` — the lidar fires 4× per period, each producing 1/4 token. The channel starts with 3/4 token so the detector can fire after just 1 lidar sample.
 - **Fan-in:** \`spc\` (Speed Control) consumes from three channels (\`obd\`, \`odm\`, \`tsd\`) — it waits until all three provide a token.
-- **Fan-out:** \`lcm\` (Left Camera) produces to four processing actors (\`tsd\`, \`tld\`, \`rmd\`, \`pdd\`).
+- **Fan-out:** \`lcm\` (Left Camera) produces to four different processing actors (\`tsd\`, \`tld\`, \`rmd\`, \`pdd\`).
 
 ---
 
@@ -408,45 +602,45 @@ When the visual editor is active and no text input is focused, the following key
 
 ### General
 
-| Shortcut | Action |
-| --- | --- |
-| **Ctrl / Cmd + Z** | Undo last action |
+| Shortcut                   | Action                  |
+| -------------------------- | ----------------------- |
+| **Ctrl / Cmd + Z**         | Undo last action        |
 | **Ctrl / Cmd + Shift + Z** | Redo last undone action |
-| **Ctrl / Cmd + Y** | Redo (alternative) |
+| **Ctrl / Cmd + Y**         | Redo (alternative)      |
 
 ### Actors
 
-| Shortcut | Action |
-| --- | --- |
-| **A** | Add a new actor at the current pointer position |
-| **Ctrl / Cmd + D** | Duplicate selected actors |
+| Shortcut               | Action                                                    |
+| ---------------------- | --------------------------------------------------------- |
+| **A**                  | Add a new actor at the current pointer position           |
+| **Ctrl / Cmd + D**     | Duplicate selected actors                                 |
 | **Delete / Backspace** | Delete selected or focused actors (and their connections) |
 
 ### Channels (Connections)
 
-| Shortcut | Action |
-| --- | --- |
+| Shortcut               | Action                              |
+| ---------------------- | ----------------------------------- |
 | **Delete / Backspace** | Delete selected or focused channels |
-| **Double-click edge** | Delete that channel |
+| **Double-click edge**  | Delete that channel                 |
 
 ### Navigation & Selection
 
-| Shortcut | Action |
-| --- | --- |
-| **Scroll wheel** | Zoom in / out |
-| **Left-click drag (canvas)** | Pan the canvas |
-| **Click node** | Select actor |
-| **Click edge** | Select channel |
-| **Click canvas** | Deselect all |
-| **Drag selection** | Multi-select actors and channels (partial overlap) |
+| Shortcut                     | Action                                             |
+| ---------------------------- | -------------------------------------------------- |
+| **Scroll wheel**             | Zoom in / out                                      |
+| **Left-click drag (canvas)** | Pan the canvas                                     |
+| **Click node**               | Select actor                                       |
+| **Click edge**               | Select channel                                     |
+| **Click canvas**             | Deselect all                                       |
+| **Drag selection**           | Multi-select actors and channels (partial overlap) |
 
 ### Context Menu (Right-click)
 
-| Target | Actions |
-| --- | --- |
-| **Canvas** | Add actor here |
-| **Node** | Delete actor (and its connections) |
-| **Edge** | Delete connection |
+| Target     | Actions                            |
+| ---------- | ---------------------------------- |
+| **Canvas** | Add actor here                     |
+| **Node**   | Delete actor (and its connections) |
+| **Edge**   | Delete connection                  |
 
 > **Note:** Keyboard shortcuts are disabled while typing inside text inputs (e.g. the properties sidebar fields).
 
@@ -455,15 +649,24 @@ When the visual editor is active and no text input is focused, the following key
 ## Tips & Best Practices
 
 1. **Start simple.** Begin with a few actors and 1:1 channels (\`"1"\` / \`"-1"\` rates) before introducing fractional rates.
-2. **Use meaningful IDs.** Short, descriptive IDs like \`"imu"\`, \`"c_imu_est"\` are best.
-3. **Check diagnostics.** Click any diagnostic in the terminal to focus the related actor or channel.
-4. **Initial tokens matter.** Pre-loading channels (\`init > 0\`) can prevent deadlocks.
-5. **Self-loops are valid.** A channel where \`src == dst\` is a feedback buffer.
-6. **Frequency vs Period.** \`freq: 100\` (100 Hz) = \`period: 10\` (10 ms).
-7. **Phase offsets.** Use \`phase\` to stagger timed actors.
-8. **Naming channels.** Convention: \`c_<src>_<dst>\`.
-9. **Validate often.** Catch issues early before running a full execution.
-10. **Rate alignment.** Ensure \`init\` aligns with rate granularity.
+
+2. **Use meaningful IDs.** Actor and channel IDs appear in diagnostics and visualizations. Short, descriptive IDs like \`"imu"\`, \`"c_imu_est"\` are best.
+
+3. **Check diagnostics.** Click any diagnostic in the terminal panel to focus the related actor or channel in the editor.
+
+4. **Initial tokens matter.** Pre-loading channels with tokens (\`init > 0\`) can prevent deadlocks when a consumer needs input before the producer has fired.
+
+5. **Self-loops are valid.** A channel where \`src == dst\` represents a feedback buffer within one actor.
+
+6. **Frequency vs Period.** Use whichever is more natural: \`freq: 100\` (100 Hz) is equivalent to \`period: 10\` (10 ms).
+
+7. **Phase offsets.** Use \`phase\` to stagger timed actors. For example, \`phase: 20\` delays the first firing by 20 ms, useful for actors that depend on data from other timed actors.
+
+8. **Naming channels.** A common convention is \`c_<src>_<dst>\`, e.g. \`"c_imu_est"\` for a channel from IMU to Estimator.
+
+9. **Validate often.** Use the Validate button frequently during model construction to catch issues early, before running a full execution.
+
+10. **Fractional rate alignment.** When using fractional rates, make sure \`init\` aligns with the rate granularity. The verifier will tell you the required multiple if it doesn't.
 
 ---
 
@@ -474,21 +677,24 @@ For programmatic use, here is the canonical TypeScript type:
 \`\`\`typescript
 type PolyGraphModel = {
   meta?: { name?: string; version?: number };
+  layout?: {
+    actors?: Record<string, { x: number; y: number }>;
+  };
   actors: Array<{
     id: string;
     label?: string;
     timed: boolean;
-    freq?: number;    // Hz, required if timed and no period
-    period?: number;  // ms, required if timed and no freq
-    phase?: number;   // ms, >= 0, optional
+    freq?: number; // Hz, required if timed and no period
+    period?: number; // ms, required if timed and no freq
+    phase?: number; // ms, >= 0, optional
   }>;
   channels: Array<{
     id: string;
-    src: string;      // actor id
-    dst: string;      // actor id
-    rateSrc: string;  // positive rational, e.g. "1", "1/3"
-    rateDst: string;  // negative rational, e.g. "-1", "-2/3"
-    init: string;     // non-negative rational, e.g. "0", "3/4"
+    src: string; // actor id
+    dst: string; // actor id
+    rateSrc: string; // positive rational, e.g. "1", "1/3"
+    rateDst: string; // negative rational, e.g. "-1", "-2/3"
+    init: string; // non-negative rational, e.g. "0", "3/4"
   }>;
 };
 \`\`\`
