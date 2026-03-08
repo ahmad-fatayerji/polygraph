@@ -1,5 +1,13 @@
 ﻿"use client";
 
+import { useEffect, useState } from "react";
+import {
+  div,
+  mul,
+  parseNumberToRational,
+  parseRational,
+  toString as rationalToString,
+} from "@/lib/polygraph/rational";
 import { usePolygraphStore } from "../store";
 
 const Field = ({ label, value }: { label: string; value: string }) => (
@@ -11,6 +19,17 @@ const Field = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
+type ExecutionTimeUnit = "ms" | "us";
+
+const parseExecutionTimeValue = (value: string | number | undefined) => {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "number") {
+    return parseNumberToRational(value);
+  }
+  const parsed = parseRational(String(value));
+  return parsed.ok ? parsed.value : null;
+};
+
 export default function PropertiesSidebar() {
   const model = usePolygraphStore((state) => state.model);
   const setModel = usePolygraphStore((state) => state.setModel);
@@ -20,9 +39,15 @@ export default function PropertiesSidebar() {
   const selectedChannelId = usePolygraphStore(
     (state) => state.ui.selectedChannelId,
   );
+  const [executionTimeUnit, setExecutionTimeUnit] =
+    useState<ExecutionTimeUnit>("ms");
 
   const actor = model.actors.find((item) => item.id === selectedActorId);
   const channel = model.channels.find((item) => item.id === selectedChannelId);
+
+  useEffect(() => {
+    setExecutionTimeUnit("ms");
+  }, [selectedActorId]);
 
   if (!actor && !channel) {
     return (
@@ -85,30 +110,70 @@ export default function PropertiesSidebar() {
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-            Execution Time (ms)
+            Execution Time
           </span>
-          <input
-            type="text"
-            className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
-            value={
-              actor.executionTime !== undefined
-                ? String(actor.executionTime)
-                : ""
-            }
-            placeholder="e.g., 2, 5/2"
-            onChange={(event) => {
-              const raw = event.target.value;
-              const nextActors = model.actors.map((item) =>
-                item.id === actor.id
-                  ? {
-                      ...item,
-                      executionTime: raw === "" ? undefined : raw,
-                    }
-                  : item,
-              );
-              setModel({ ...model, actors: nextActors }, "visual");
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              className="min-w-0 flex-1 rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
+              value={(() => {
+                const parsed = parseExecutionTimeValue(actor.executionTime);
+                if (!parsed) return "";
+                return executionTimeUnit === "us"
+                  ? rationalToString(mul(parsed, { n: 1000n, d: 1n }))
+                  : rationalToString(parsed);
+              })()}
+              placeholder={
+                executionTimeUnit === "us"
+                  ? "e.g., 94, 211/2"
+                  : "e.g., 2, 5/2"
+              }
+              onChange={(event) => {
+                const raw = event.target.value.trim();
+                let nextValue: string | undefined;
+
+                if (raw !== "") {
+                  const parsed = parseRational(raw);
+                  if (parsed.ok) {
+                    nextValue =
+                      executionTimeUnit === "us"
+                        ? rationalToString(
+                            div(parsed.value, { n: 1000n, d: 1n }),
+                          )
+                        : rationalToString(parsed.value);
+                  } else {
+                    nextValue = raw;
+                  }
+                }
+
+                const nextActors = model.actors.map((item) =>
+                  item.id === actor.id
+                    ? {
+                        ...item,
+                        executionTime: nextValue,
+                      }
+                    : item,
+                );
+                setModel({ ...model, actors: nextActors }, "visual");
+              }}
+            />
+            <div className="flex rounded-lg border border-[color:var(--panel-border)] bg-[color:var(--panel)] p-0.5">
+              {(["ms", "us"] as const).map((unit) => (
+                <button
+                  key={unit}
+                  type="button"
+                  onClick={() => setExecutionTimeUnit(unit)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    executionTimeUnit === unit
+                      ? "bg-[color:var(--chip)] text-[color:var(--chip-text)]"
+                      : "text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+                  }`}
+                >
+                  {unit}
+                </button>
+              ))}
+            </div>
+          </div>
         </label>
         {actor.timed && (
           <div className="space-y-3">

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Diagnostic, ExecutionResult, PolyGraphModel } from "@/lib/polygraph/types";
 import { buildDefaultPositions, type ActorPosition } from "./graphLayout";
+import px4ModelCoords from "@/public/px4-model-coords.json";
 
 export type EditorMode = "json" | "visual";
 
@@ -33,44 +34,7 @@ type PolygraphState = {
   reset: () => void;
 };
 
-export const defaultModel: PolyGraphModel = {
-  meta: { name: "PX4 Control Loop", version: 1 },
-  actors: [
-    {
-      id: "imu",
-      label: "IMU",
-      timed: true,
-      freq: 200,
-      phase: 0,
-      executionTime: "1",
-    },
-    {
-      id: "est",
-      label: "Estimator",
-      timed: false,
-      executionTime: "2",
-    },
-    {
-      id: "ctrl",
-      label: "Controller",
-      timed: true,
-      freq: 100,
-      phase: 0,
-      executionTime: "3/2",
-    },
-    {
-      id: "log",
-      label: "Logger",
-      timed: false,
-      executionTime: "1/2",
-    },
-  ],
-  channels: [
-    { id: "c1", src: "imu", dst: "est", rateSrc: "1", rateDst: "-1", init: "0" },
-    { id: "c2", src: "est", dst: "ctrl", rateSrc: "1", rateDst: "-1", init: "0" },
-    { id: "c3", src: "ctrl", dst: "log", rateSrc: "1/2", rateDst: "-1", init: "1/2" },
-  ],
-};
+export const defaultModel: PolyGraphModel = px4ModelCoords as PolyGraphModel;
 
 const isValidPosition = (value: unknown): value is ActorPosition =>
   typeof value === "object" &&
@@ -177,7 +141,11 @@ const writeStoredJsonText = (text: string) => {
   }
 };
 
-const defaultActorPositions = buildDefaultPositions(defaultModel.actors);
+const defaultActorPositions = mergeActorPositions(
+  buildDefaultPositions(defaultModel.actors),
+  defaultModel,
+  extractActorPositions(defaultModel)
+);
 const initialState = (() => {
   let model = defaultModel;
   let jsonText = serializeModelWithLayout(defaultModel, defaultActorPositions);
