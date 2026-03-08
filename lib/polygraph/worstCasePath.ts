@@ -160,19 +160,32 @@ const buildOccurrences = (
 const computePathBound = (
   path: string[],
   byActor: Map<string, FiringOccurrence[]>
-): Rational | null => {
+):
+  | {
+      duration: Rational;
+      executionCost: Rational;
+      structuralCost: Rational;
+    }
+  | null => {
   const firstActorOccurrences = byActor.get(path[0]) ?? [];
   const firstCycleOccurrences = firstActorOccurrences.filter(
     (occurrence) => occurrence.cycleIndex === 0
   );
   if (firstCycleOccurrences.length === 0) return null;
 
-  let worst: Rational | null = null;
+  let worst:
+    | {
+        duration: Rational;
+        executionCost: Rational;
+        structuralCost: Rational;
+      }
+    | null = null;
 
   for (const first of firstCycleOccurrences) {
     let currentReady = first.end;
     let last = first;
     let valid = true;
+    let executionCost = sub(first.end, first.start);
 
     for (let index = 1; index < path.length; index += 1) {
       const occurrences = byActor.get(path[index]) ?? [];
@@ -185,13 +198,19 @@ const computePathBound = (
       }
       currentReady = next.end;
       last = next;
+      executionCost = add(executionCost, sub(next.end, next.start));
     }
 
     if (!valid) continue;
 
-    const latency = sub(last.end, first.release);
-    if (worst === null || compare(latency, worst) > 0) {
-      worst = latency;
+    const duration = sub(last.end, first.release);
+    const structuralCost = sub(duration, executionCost);
+    if (worst === null || compare(duration, worst.duration) > 0) {
+      worst = {
+        duration,
+        executionCost,
+        structuralCost,
+      };
     }
   }
 
@@ -213,10 +232,19 @@ export const computeWorstCasePath = (
   const { byActor } = buildOccurrences(model, schedule, baseTick);
   const ranked = paths
     .map((path) => {
-      const duration = computePathBound(path, byActor);
-      return duration ? { path, duration } : null;
+      const bound = computePathBound(path, byActor);
+      return bound ? { path, ...bound } : null;
     })
-    .filter((entry): entry is { path: string[]; duration: Rational } => entry !== null)
+    .filter(
+      (
+        entry
+      ): entry is {
+        path: string[];
+        duration: Rational;
+        executionCost: Rational;
+        structuralCost: Rational;
+      } => entry !== null
+    )
     .sort((left, right) => {
       const durationCmp = compare(right.duration, left.duration);
       if (durationCmp !== 0) return durationCmp;
@@ -228,12 +256,16 @@ export const computeWorstCasePath = (
   const best = ranked[0];
   return {
     duration: rationalToString(best.duration),
+    structuralCost: rationalToString(best.structuralCost),
+    executionCost: rationalToString(best.executionCost),
     path: best.path,
     pathsAnalyzed: ranked.length,
     truncated: pathEnumerationTruncated,
     rankedPaths: ranked.slice(0, TOP_PATHS).map((entry) => ({
       path: entry.path,
       duration: rationalToString(entry.duration),
+      structuralCost: rationalToString(entry.structuralCost),
+      executionCost: rationalToString(entry.executionCost),
     })),
   };
 };

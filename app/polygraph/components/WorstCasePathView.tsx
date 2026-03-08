@@ -15,6 +15,15 @@ const formatDuration = (raw: string) => {
   return `${raw} ms (${approx.toFixed(2)} ms)`;
 };
 
+const formatApprox = (raw: string) => {
+  const parsed = parseRational(raw);
+  if (!parsed.ok) return `${raw} ms`;
+
+  const approx = Number(parsed.value.n) / Number(parsed.value.d);
+  if (!Number.isFinite(approx)) return `${raw} ms`;
+  return `${approx.toFixed(2)} ms`;
+};
+
 export default function WorstCasePathView({
   execution,
   model,
@@ -50,6 +59,14 @@ export default function WorstCasePathView({
           <p className="mt-1 text-[11px] text-[color:var(--muted)]">
             Source release to sink completion on the witness schedule.
           </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="rounded-full bg-[color:var(--panel)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--foreground)]">
+              Structural: {formatApprox(worstCasePath.structuralCost)}
+            </span>
+            <span className="rounded-full bg-[color:var(--panel)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--foreground)]">
+              Execution: {formatApprox(worstCasePath.executionCost)}
+            </span>
+          </div>
         </div>
         <p className="text-[10px] text-[color:var(--muted)]">
           {worstCasePath.pathsAnalyzed} path
@@ -95,9 +112,17 @@ export default function WorstCasePathView({
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">
                   Path #{index + 1}
                 </span>
-                <span className="text-xs font-semibold text-[color:var(--foreground)]">
-                  {formatDuration(entry.duration)}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-[color:var(--muted)]">
+                    structural {formatApprox(entry.structuralCost)}
+                  </span>
+                  <span className="text-[10px] text-[color:var(--muted)]">
+                    execution {formatApprox(entry.executionCost)}
+                  </span>
+                  <span className="text-xs font-semibold text-[color:var(--foreground)]">
+                    {formatDuration(entry.duration)}
+                  </span>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-1 text-[11px] text-[color:var(--muted-strong)]">
                 {entry.path.map((actorId, actorIndex) => (

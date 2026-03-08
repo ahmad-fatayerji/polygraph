@@ -24,12 +24,16 @@ export type DetailedTraceStep = {
 
 export type WorstCasePathArtifact = {
   duration: string; // milliseconds, exact rational string
+  structuralCost: string; // milliseconds, exact rational string
+  executionCost: string; // milliseconds, exact rational string
   path: string[]; // actor ids on the worst path
   pathsAnalyzed: number;
   truncated: boolean;
   rankedPaths: Array<{
     path: string[];
     duration: string; // milliseconds, exact rational string
+    structuralCost: string; // milliseconds, exact rational string
+    executionCost: string; // milliseconds, exact rational string
   }>;
 };
 
