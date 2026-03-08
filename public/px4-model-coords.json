@@ -32,73 +32,85 @@
       "id": "vehicle_angular_velocity",
       "label": "Vehicle Angular Velocity",
       "timed": true,
-      "freq": 400
+      "freq": 400,
+      "executionTime": "279/500"
     },
     {
       "id": "sensors",
       "label": "Sensors",
       "timed": true,
-      "freq": 200
+      "freq": 200,
+      "executionTime": "47/500"
     },
     {
       "id": "vehicle_air_data",
       "label": "Vehicle Air Data",
       "timed": true,
-      "freq": 80
+      "freq": 80,
+      "executionTime": "1/20"
     },
     {
       "id": "ekf2",
       "label": "EKF2",
       "timed": true,
-      "freq": 200
+      "freq": 200,
+      "executionTime": "79/250"
     },
     {
       "id": "battery_module",
       "label": "Battery Module",
       "timed": true,
-      "freq": 20
+      "freq": 20,
+      "executionTime": "11/500"
     },
     {
       "id": "commander",
       "label": "Commander",
       "timed": true,
-      "freq": 100
+      "freq": 100,
+      "executionTime": "264/250"
     },
     {
       "id": "navigator",
       "label": "Navigator",
       "timed": true,
-      "freq": 20
+      "freq": 20,
+      "executionTime": "361/500"
     },
     {
       "id": "flight_mode_manager",
       "label": "Flight Mode Manager",
       "timed": true,
-      "freq": 50
+      "freq": 50,
+      "executionTime": "159/500"
     },
     {
       "id": "mc_pos_control",
       "label": "MC Position Control",
       "timed": true,
-      "freq": 100
+      "freq": 100,
+      "executionTime": "43/1000"
     },
     {
       "id": "mc_att_control",
       "label": "MC Attitude Control",
       "timed": true,
-      "freq": 200
+      "freq": 200,
+      "executionTime": "17/500"
     },
     {
       "id": "mc_rate_control",
       "label": "MC Rate Control",
       "timed": true,
-      "freq": 400
+      "freq": 400,
+      "executionTime": "9/125"
     },
     {
       "id": "control_allocator",
       "label": "Control Allocator",
       "timed": true,
-      "freq": 400
+      "freq": 400,
+      "executionTime": "3/40"
     },
     {
       "id": "pwm_pca9685",
@@ -123,14 +135,16 @@
       "label": "rc_input",
       "timed": true,
       "freq": 70,
-      "phase": "0"
+      "phase": "0",
+      "executionTime": "57/1000"
     },
     {
       "id": "a2",
       "label": "rc_update",
       "timed": true,
       "freq": 70,
-      "phase": "0"
+      "phase": "0",
+      "executionTime": "0"
     },
     {
       "id": "a3",

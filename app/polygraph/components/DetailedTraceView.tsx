@@ -4,7 +4,6 @@ import {
   forwardRef,
   useCallback,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -13,6 +12,7 @@ import type {
   PolyGraphModel,
   DetailedTraceStep,
 } from "@/lib/polygraph/types";
+import WorstCasePathView from "./WorstCasePathView";
 
 export interface DetailedTraceViewHandle {
   exportPng: () => Promise<void>;
@@ -423,125 +423,6 @@ const DetailedTraceView = forwardRef<
     [handleExportPng, handleExportSvg, handleExportCsv],
   );
 
-  // --- Critical path analysis ---
-  const criticalPaths = useMemo(() => {
-    const schedule = execution?.artifacts?.schedule;
-    const tickCount = execution?.artifacts?.hyperperiod?.tickCount;
-    if (!schedule || !tickCount || schedule.length === 0) return null;
-
-    // baseTick in ms = hyperperiod_ms / tickCount
-    // Using LCM of periods divided by tickCount ensures phase offsets that force
-    // a finer tick grid are correctly reflected (GCD of periods alone is wrong
-    // when actors have non-zero phase offsets).
-    const gcdF = (a: number, b: number): number =>
-      b < 0.0001 ? a : gcdF(b, a % b);
-    const lcmF = (a: number, b: number): number => (a / gcdF(a, b)) * b;
-    const periods = model.actors
-      .filter((a) => a.timed)
-      .map((a) => (a.period != null ? a.period : a.freq ? 1000 / a.freq : 0))
-      .filter((p) => p > 0);
-    const hyperperiod_ms = periods.length > 0 ? periods.reduce(lcmF) : 0;
-    const baseTick_ms =
-      hyperperiod_ms > 0 && tickCount > 0 ? hyperperiod_ms / tickCount : 1;
-
-    // Build adjacency (skip self-loops for path analysis)
-    const outEdges = new Map<string, string[]>();
-    const inDegree = new Map<string, number>();
-    for (const a of model.actors) {
-      outEdges.set(a.id, []);
-      inDegree.set(a.id, 0);
-    }
-    const seenEdge = new Set<string>();
-    for (const ch of model.channels) {
-      if (ch.src !== ch.dst) {
-        const key = `${ch.src}\0${ch.dst}`;
-        if (!seenEdge.has(key)) {
-          seenEdge.add(key);
-          outEdges.get(ch.src)?.push(ch.dst);
-          inDegree.set(ch.dst, (inDegree.get(ch.dst) ?? 0) + 1);
-        }
-      }
-    }
-    const sources = model.actors
-      .filter((a) => (inDegree.get(a.id) ?? 0) === 0)
-      .map((a) => a.id);
-    const sinkSet = new Set(
-      model.actors
-        .filter((a) => (outEdges.get(a.id) ?? []).length === 0)
-        .map((a) => a.id),
-    );
-
-    // Actor firing ticks (and 2-hyperperiod extension for wrap-around)
-    const actorTicks = new Map<string, number[]>();
-    for (const step of schedule)
-      for (const id of step.fires) {
-        if (!actorTicks.has(id)) actorTicks.set(id, []);
-        actorTicks.get(id)!.push(step.tick);
-      }
-    const extTicks = new Map<string, number[]>();
-    for (const [id, tks] of actorTicks)
-      extTicks.set(id, [...tks, ...tks.map((t) => t + tickCount)]);
-
-    function latencyOf(
-      chain: string[],
-    ): { worst: number; best: number } | null {
-      const starts = actorTicks.get(chain[0]);
-      if (!starts) return null;
-      const lats: number[] = [];
-      for (const s of starts) {
-        let cur = s;
-        let ok = true;
-        for (let i = 1; i < chain.length; i++) {
-          const nexts = extTicks.get(chain[i]);
-          if (!nexts) {
-            ok = false;
-            break;
-          }
-          const nxt = nexts.find((t) => t >= cur);
-          if (nxt === undefined) {
-            ok = false;
-            break;
-          }
-          cur = nxt;
-        }
-        if (ok) lats.push(cur - s);
-      }
-      if (lats.length === 0) return null;
-      return { worst: Math.max(...lats), best: Math.min(...lats) };
-    }
-
-    // DFS: enumerate all simple source→sink paths (capped)
-    const allPaths: string[][] = [];
-    const MAX = 300;
-    function dfs(path: string[], visited: Set<string>) {
-      if (allPaths.length >= MAX) return;
-      const cur = path[path.length - 1];
-      if (sinkSet.has(cur) && path.length > 1) allPaths.push([...path]);
-      for (const nxt of outEdges.get(cur) ?? []) {
-        if (!visited.has(nxt)) {
-          visited.add(nxt);
-          path.push(nxt);
-          dfs(path, visited);
-          path.pop();
-          visited.delete(nxt);
-        }
-      }
-    }
-    for (const src of sources) dfs([src], new Set([src]));
-    if (allPaths.length === 0) return null;
-
-    const label = (id: string) =>
-      model.actors.find((a) => a.id === id)?.label ?? id;
-
-    const ranked = allPaths
-      .map((chain) => ({ chain, lat: latencyOf(chain) }))
-      .filter((r) => r.lat !== null)
-      .sort((a, b) => b.lat!.worst - a.lat!.worst)
-      .slice(0, 5);
-
-    return { ranked, baseTick_ms, totalPaths: allPaths.length, label };
-  }, [execution, model]);
-
   if (!trace || trace.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
@@ -636,7 +517,6 @@ const DetailedTraceView = forwardRef<
                   step={step}
                   channelCount={channels.length}
                   timedActorIndices={timedActorIndices}
-                  actorCount={actors.length}
                   isEven={rowIdx % 2 === 0}
                   isFireRow={step.label.startsWith("fire")}
                   isTickRow={step.label.startsWith("tick")}
@@ -647,84 +527,7 @@ const DetailedTraceView = forwardRef<
         </div>
       </div>
 
-      {/* Critical Path Analysis */}
-      {criticalPaths && criticalPaths.ranked.length > 0 && (
-        <div className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4">
-          <div className="mb-3 flex items-baseline justify-between">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--muted-strong)]">
-              Critical Path
-            </span>
-            <span className="text-[10px] text-[color:var(--muted)]">
-              {criticalPaths.totalPaths} path
-              {criticalPaths.totalPaths !== 1 ? "s" : ""} analysed
-            </span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {criticalPaths.ranked.map(({ chain, lat }, i) => (
-              <div
-                key={i}
-                className={`rounded-lg border px-3 py-2.5 ${
-                  i === 0
-                    ? "border-[color:var(--accent)] bg-[color:var(--panel)]"
-                    : "border-[color:var(--panel-border)] bg-[color:var(--panel)]"
-                }`}
-              >
-                <div className="mb-1.5 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-1.5">
-                    {i === 0 && (
-                      <span className="rounded-sm bg-[color:var(--accent)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[color:var(--panel)]">
-                        Critical
-                      </span>
-                    )}
-                    <span className="text-[10px] font-semibold text-[color:var(--muted-strong)]">
-                      #{i + 1}
-                    </span>
-                    <span className="text-[10px] text-[color:var(--muted)]">
-                      {chain.length} actors
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 font-mono text-xs">
-                    <span
-                      className={
-                        i === 0
-                          ? "font-bold text-[color:var(--foreground)]"
-                          : "text-[color:var(--muted-strong)]"
-                      }
-                    >
-                      worst&nbsp;
-                      <span
-                        className={
-                          i === 0
-                            ? "text-blue-400"
-                            : "text-[color:var(--foreground)]"
-                        }
-                      >
-                        {lat!.worst} ticks
-                        {" = "}
-                        {(lat!.worst * criticalPaths.baseTick_ms).toFixed(2)} ms
-                      </span>
-                    </span>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1 font-mono text-[10px]">
-                  {chain.map((id, ci) => (
-                    <span key={ci} className="flex items-center gap-1">
-                      <span className="rounded bg-[color:var(--panel-muted)] px-1.5 py-0.5 text-[color:var(--foreground)]">
-                        {criticalPaths.label(id)}
-                      </span>
-                      {ci < chain.length - 1 && (
-                        <span className="text-[color:var(--muted)]">
-                          &rarr;
-                        </span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <WorstCasePathView execution={execution} model={model} />
     </div>
   );
 });
@@ -735,7 +538,6 @@ function TraceRow({
   step,
   channelCount,
   timedActorIndices,
-  actorCount,
   isEven,
   isFireRow,
   isTickRow,
@@ -743,7 +545,6 @@ function TraceRow({
   step: DetailedTraceStep;
   channelCount: number;
   timedActorIndices: number[];
-  actorCount: number;
   isEven: boolean;
   isFireRow: boolean;
   isTickRow: boolean;

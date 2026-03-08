@@ -42,11 +42,13 @@ export const defaultModel: PolyGraphModel = {
       timed: true,
       freq: 200,
       phase: 0,
+      executionTime: "1",
     },
     {
       id: "est",
       label: "Estimator",
       timed: false,
+      executionTime: "2",
     },
     {
       id: "ctrl",
@@ -54,11 +56,13 @@ export const defaultModel: PolyGraphModel = {
       timed: true,
       freq: 100,
       phase: 0,
+      executionTime: "3/2",
     },
     {
       id: "log",
       label: "Logger",
       timed: false,
+      executionTime: "1/2",
     },
   ],
   channels: [

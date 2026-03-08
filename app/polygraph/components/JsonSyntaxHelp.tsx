@@ -203,6 +203,16 @@ const sections: Section[] = [
                   Defaults to 0 if omitted.
                 </>,
               )}
+              {fieldRow(
+                "executionTime",
+                "string | number",
+                false,
+                <>
+                  Worst-case execution time in <strong>milliseconds</strong>.
+                  Used for worst-case path analysis. Must be &ge; 0. Prefer
+                  exact values like {code('"5/2"')}.
+                </>,
+              )}
             </tbody>
           </table>
         </div>
@@ -216,7 +226,8 @@ const sections: Section[] = [
   "label": "IMU Sensor",
   "timed": true,
   "freq": 200,
-  "phase": 0
+  "phase": 0,
+  "executionTime": "1"
 }`)}
         </div>
 
@@ -229,7 +240,8 @@ const sections: Section[] = [
   "label": "Emergency Braking",
   "timed": true,
   "period": 100,
-  "phase": 20
+  "phase": 20,
+  "executionTime": "5/2"
 }`)}
         </div>
 
@@ -240,7 +252,8 @@ const sections: Section[] = [
           {jsonBlock(`{
   "id": "estimator",
   "label": "State Estimator",
-  "timed": false
+  "timed": false,
+  "executionTime": "2"
 }`)}
         </div>
 
@@ -248,7 +261,8 @@ const sections: Section[] = [
           <strong>Note:</strong> Only one of {code("freq")} or {code("period")}{" "}
           is needed for timed actors. If both are provided, {code("freq")} takes
           precedence. Untimed actors should not have {code("freq")},{" "}
-          {code("period")}, or {code("phase")}.
+          {code("period")}, or {code("phase")}. Both timed and untimed actors
+          may declare {code("executionTime")} for worst-case path analysis.
         </div>
       </div>
     ),
@@ -575,10 +589,10 @@ const sections: Section[] = [
         {jsonBlock(`{
   "meta": { "name": "PX4 Control Loop", "version": 1 },
   "actors": [
-    { "id": "imu",  "label": "IMU",        "timed": true,  "freq": 200, "phase": 0 },
-    { "id": "est",  "label": "Estimator",   "timed": false },
-    { "id": "ctrl", "label": "Controller",  "timed": true,  "freq": 100, "phase": 0 },
-    { "id": "log",  "label": "Logger",      "timed": false }
+    { "id": "imu",  "label": "IMU",        "timed": true,  "freq": 200, "phase": 0, "executionTime": "1" },
+    { "id": "est",  "label": "Estimator",   "timed": false, "executionTime": "2" },
+    { "id": "ctrl", "label": "Controller",  "timed": true,  "freq": 100, "phase": 0, "executionTime": "3/2" },
+    { "id": "log",  "label": "Logger",      "timed": false, "executionTime": "1/2" }
   ],
   "channels": [
     { "id": "c1", "src": "imu",  "dst": "est",  "rateSrc": "1",   "rateDst": "-1", "init": "0"   },

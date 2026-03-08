@@ -22,6 +22,17 @@ export type DetailedTraceStep = {
   totalTicks: number;        // z^σ
 };
 
+export type WorstCasePathArtifact = {
+  duration: string; // milliseconds, exact rational string
+  path: string[]; // actor ids on the worst path
+  pathsAnalyzed: number;
+  truncated: boolean;
+  rankedPaths: Array<{
+    path: string[];
+    duration: string; // milliseconds, exact rational string
+  }>;
+};
+
 export type ExecutionResult = {
   ok: boolean;
   diagnostics: Diagnostic[];
@@ -42,6 +53,7 @@ export type ExecutionResult = {
       }>;
     }>;
     detailedTrace?: DetailedTraceStep[];
+    worstCasePath?: WorstCasePathArtifact;
   };
 };
 
@@ -57,6 +69,7 @@ export type PolyGraphModel = {
     freq?: number; // Hz (optional if period is provided)
     period?: number; // milliseconds (optional if freq is provided)
     phase?: string | number; // milliseconds, rational string e.g. "0", "20", "200/3", or number
+    executionTime?: string | number; // milliseconds, exact duration used for worst-case path analysis
     ui?: { x: number; y: number };
   }>;
   channels: Array<{

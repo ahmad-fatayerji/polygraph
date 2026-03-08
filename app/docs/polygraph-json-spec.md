@@ -131,6 +131,7 @@ Actors are the processing nodes in the dataflow graph. Each actor fires (execute
 | `freq`   | number  | Cond.    | Firing frequency in **Hz** (cycles/sec). Required for timed actors if `period` is not set. Must be > 0.  |
 | `period` | number  | Cond.    | Firing period in **milliseconds**. Required for timed actors if `freq` is not set. Must be > 0.          |
 | `phase`  | number  | No       | Initial phase offset in **milliseconds**. Must be >= 0. Defaults to 0. Only meaningful for timed actors. |
+| `executionTime` | string \| number | No | Worst-case execution time in **milliseconds**. Used to compute the worst-case path. Must be >= 0. Prefer exact values like `"5/2"`. |
 
 ### Timed Actors
 
@@ -139,6 +140,7 @@ Timed actors fire at regular intervals. You must provide **either** `freq` or `p
 - `freq: 100` means the actor fires 100 times per second (100 Hz).
 - `period: 10` means the actor fires once every 10 milliseconds (equivalent to 100 Hz).
 - `phase: 20` means the first firing is delayed by 20 ms.
+- `executionTime: "5/2"` means the actor may take 2.5 ms in the worst case.
 
 **Example using `freq`:**
 
@@ -148,7 +150,8 @@ Timed actors fire at regular intervals. You must provide **either** `freq` or `p
   "label": "IMU Sensor",
   "timed": true,
   "freq": 200,
-  "phase": 0
+  "phase": 0,
+  "executionTime": "1"
 }
 ```
 
@@ -160,7 +163,8 @@ Timed actors fire at regular intervals. You must provide **either** `freq` or `p
   "label": "Emergency Braking",
   "timed": true,
   "period": 100,
-  "phase": 20
+  "phase": 20,
+  "executionTime": "5/2"
 }
 ```
 
@@ -172,7 +176,8 @@ Untimed actors fire whenever their input channels have enough tokens. They shoul
 {
   "id": "estimator",
   "label": "State Estimator",
-  "timed": false
+  "timed": false,
+  "executionTime": "2"
 }
 ```
 
@@ -284,6 +289,7 @@ Checks that the model is well-formed:
 - At least one rate per channel must be an integer (the other may be a fraction).
 - Channel `src` and `dst` reference existing actors.
 - Timed actors have valid `freq` or `period` (> 0) and `phase` >= 0.
+- Actor `executionTime` values, when provided, parse as exact non-negative durations.
 
 ### Level 2 — Consistency (Bounded Memory)
 
@@ -363,16 +369,17 @@ A simple drone control loop with two timed sensors, an untimed estimator, a time
     }
   },
   "actors": [
-    { "id": "imu", "label": "IMU", "timed": true, "freq": 200, "phase": 0 },
-    { "id": "est", "label": "Estimator", "timed": false },
+    { "id": "imu", "label": "IMU", "timed": true, "freq": 200, "phase": 0, "executionTime": "1" },
+    { "id": "est", "label": "Estimator", "timed": false, "executionTime": "2" },
     {
       "id": "ctrl",
       "label": "Controller",
       "timed": true,
       "freq": 100,
-      "phase": 0
+      "phase": 0,
+      "executionTime": "3/2"
     },
-    { "id": "log", "label": "Logger", "timed": false }
+    { "id": "log", "label": "Logger", "timed": false, "executionTime": "1/2" }
   ],
   "channels": [
     {
@@ -407,6 +414,7 @@ A simple drone control loop with two timed sensors, an untimed estimator, a time
 
 - The IMU fires at 200 Hz, the controller at 100 Hz.
 - The estimator and logger are untimed — they fire when input tokens are available.
+- Each actor can optionally declare `executionTime` to participate in worst-case path analysis.
 - Channel `c2` uses fractional rates: the estimator produces 1/2 token per firing, the controller consumes 1 token. This accounts for the 2:1 frequency ratio (200 Hz → 100 Hz). The channel starts with 1/2 token to pre-load the pipeline.
 - Channel `c3` is similar: the controller produces 1/2 token per firing, the logger consumes 1 full token.
 
@@ -683,6 +691,7 @@ type PolyGraphModel = {
     freq?: number; // Hz, required if timed and no period
     period?: number; // ms, required if timed and no freq
     phase?: number; // ms, >= 0, optional
+    executionTime?: string | number; // ms, exact duration used for worst-case path analysis
   }>;
   channels: Array<{
     id: string;

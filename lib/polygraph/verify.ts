@@ -6,6 +6,7 @@ import {
   mul,
   neg,
   absRational,
+  parseNumberToRational,
   parseRational,
   rationalZero,
 } from "./rational";
@@ -13,9 +14,25 @@ import { analyzeGraph, buildTopology } from "./topology";
 import type { ParsedChannel } from "./consistency";
 import { checkConsistency } from "./consistency";
 import { checkLiveness } from "./liveness";
+import { computeWorstCasePath } from "./worstCasePath";
 
 const hasErrors = (diagnostics: Diagnostic[]) =>
   diagnostics.some((diag) => diag.severity === "error");
+
+const parseDurationField = (value: string | number | undefined) => {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true as const, value: rationalZero };
+  }
+
+  if (typeof value === "number") {
+    const parsed = parseNumberToRational(value);
+    return parsed
+      ? { ok: true as const, value: parsed }
+      : { ok: false as const, error: "Invalid numeric duration" };
+  }
+
+  return parseRational(String(value));
+};
 
 const parseChannels = (model: PolyGraphModel) => {
   const diagnostics: Diagnostic[] = [];
@@ -238,6 +255,28 @@ const validateActors = (model: PolyGraphModel) => {
         }
       }
     }
+
+    if (actor.executionTime !== undefined && actor.executionTime !== "") {
+      const executionTimeStr = String(actor.executionTime);
+      const executionTimeResult = parseDurationField(actor.executionTime);
+      if (!executionTimeResult.ok) {
+        diagnostics.push({
+          id: "E_PARSE_RATIONAL",
+          severity: "error",
+          message: `Actor "${actor.id}" has an invalid executionTime value: "${executionTimeStr}". Execution time must be an exact non-negative duration in milliseconds.`,
+          where: { actorId: actor.id, field: "executionTime" },
+          hint: 'Use an integer like "2" or a fraction like "5/2".',
+        });
+      } else if (compare(executionTimeResult.value, rationalZero) < 0) {
+        diagnostics.push({
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: `Actor "${actor.id}" has a negative executionTime (${executionTimeStr} ms). Execution time must be zero or positive.`,
+          where: { actorId: actor.id, field: "executionTime" },
+          hint: 'Set "executionTime" to "0" or a positive duration like "1" or "3/2".',
+        });
+      }
+    }
   });
 
   return diagnostics;
@@ -329,6 +368,19 @@ export const verify = (
     message: "Liveness check passed — the model is deadlock-free. All actors can complete their required executions.",
   });
 
-  return { ok: true, diagnostics, artifacts: liveness.artifacts };
+  return {
+    ok: true,
+    diagnostics,
+    artifacts: liveness.artifacts
+      ? {
+          ...liveness.artifacts,
+          worstCasePath: computeWorstCasePath(
+            model,
+            liveness.artifacts.schedule,
+            consistency.repetition.timing?.baseTick
+          ),
+        }
+      : undefined,
+  };
 };
 

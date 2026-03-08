@@ -10,6 +10,7 @@ import TokenTraceView from "./TokenTraceView";
 import DetailedTraceView, {
   type DetailedTraceViewHandle,
 } from "./DetailedTraceView";
+import WorstCasePathView from "./WorstCasePathView";
 
 export default function VisualizationPanel() {
   const model = usePolygraphStore((state) => state.model);
@@ -237,6 +238,15 @@ export default function VisualizationPanel() {
                 Token Trace
               </h3>
               <TokenTraceView
+                execution={execution}
+                model={renderModel ?? model}
+              />
+            </div>
+            <div className="min-h-0 shrink-0">
+              <h3 className="mb-3 text-sm font-semibold text-[color:var(--muted-strong)]">
+                End-to-End Response Bound
+              </h3>
+              <WorstCasePathView
                 execution={execution}
                 model={renderModel ?? model}
               />

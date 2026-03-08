@@ -83,6 +83,33 @@ export default function PropertiesSidebar() {
           />
           Timed actor
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+            Execution Time (ms)
+          </span>
+          <input
+            type="text"
+            className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
+            value={
+              actor.executionTime !== undefined
+                ? String(actor.executionTime)
+                : ""
+            }
+            placeholder="e.g., 2, 5/2"
+            onChange={(event) => {
+              const raw = event.target.value;
+              const nextActors = model.actors.map((item) =>
+                item.id === actor.id
+                  ? {
+                      ...item,
+                      executionTime: raw === "" ? undefined : raw,
+                    }
+                  : item,
+              );
+              setModel({ ...model, actors: nextActors }, "visual");
+            }}
+          />
+        </label>
         {actor.timed && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">

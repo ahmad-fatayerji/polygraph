@@ -316,6 +316,12 @@ function VisualEditorInner() {
                       : "TIMED"
                   : "UNTIMED"}
               </span>
+              {actor.executionTime != null &&
+              String(actor.executionTime).trim() !== "" ? (
+                <span className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--muted-strong)]">
+                  WCET {String(actor.executionTime)} ms
+                </span>
+              ) : null}
               {actor.timed && actor.phase != null && String(actor.phase) !== "0" && String(actor.phase) !== "" && (
                 <span className="text-[10px] tracking-[0.08em]" style={{ color: "#c0392b" }}>
                   +{String(actor.phase)} ms
