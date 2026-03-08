@@ -417,33 +417,33 @@
       "id": "c3",
       "src": "a2",
       "dst": "commander",
-      "rateSrc": "10",
-      "rateDst": "-7",
-      "init": "7"
+      "rateSrc": "1",
+      "rateDst": "7/10",
+      "init": "9/10"
     },
     {
       "id": "c4",
       "src": "a3",
       "dst": "commander",
-      "rateSrc": "10",
-      "rateDst": "-7",
-      "init": "7"
+      "rateSrc": "1",
+      "rateDst": "7/10",
+      "init": "9/10"
     },
     {
       "id": "c5",
       "src": "a3",
       "dst": "flight_mode_manager",
-      "rateSrc": "5",
-      "rateDst": "-7",
-      "init": "7"
+      "rateSrc": "1",
+      "rateDst": "7/5",
+      "init": "5"
     },
     {
       "id": "c6",
       "src": "a3",
       "dst": "mc_att_control",
-      "rateSrc": "20",
-      "rateDst": "-7",
-      "init": "7"
+      "rateSrc": "1",
+      "rateDst": "7/20",
+      "init": "19/20"
     }
   ],
   "layout": {
