@@ -45,85 +45,121 @@ const PolygraphGraphView = forwardRef<
   // Compute automatic top-to-bottom layout as fallback when no manual positions set
   const autoLayout = useMemo(() => computeAutoLayout(model), [model]);
 
+  const connectedActorIds = useMemo(() => {
+    const set = new Set<string>();
+    if (selectedActorId) {
+      set.add(selectedActorId);
+      model.channels.forEach((ch) => {
+        if (ch.src === selectedActorId) set.add(ch.dst);
+        if (ch.dst === selectedActorId) set.add(ch.src);
+      });
+    }
+    return set;
+  }, [selectedActorId, model.channels]);
+
+  const hasFocus = !!selectedActorId;
+
   const nodes = useMemo<Node[]>(() => {
-    return model.actors.map((actor, idx) => ({
-      id: actor.id,
-      data: {
-        label: (
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-semibold text-[color:var(--foreground)]">
-              {actor.label ?? actor.id}
-            </span>
-            <span className="text-[11px] text-[color:var(--muted)]">
-              {actor.timed
-                ? actor.freq !== undefined
-                  ? `Timed - ${actor.freq} Hz`
-                  : actor.period !== undefined
-                    ? `Timed - ${actor.period} ms`
-                    : "Timed - ?"
-                : "Untimed"}
-            </span>
-          </div>
-        ),
-      },
-      position:
-        actorPositions?.[actor.id] ??
-        autoLayout[actor.id] ??
-        defaultPosition(idx),
-      sourcePosition: Position.Bottom,
-      targetPosition: Position.Top,
-      selectable: false,
-      draggable: false,
-      style: {
-        borderRadius: 18,
-        padding: "14px 16px",
-        border:
-          actor.id === selectedActorId
+    return model.actors.map((actor, idx) => {
+      const dimmed = hasFocus && !connectedActorIds.has(actor.id);
+      const isSelected = actor.id === selectedActorId;
+      return {
+        id: actor.id,
+        data: {
+          label: (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-[color:var(--foreground)]">
+                {actor.label ?? actor.id}
+              </span>
+              <span className="text-[11px] text-[color:var(--muted)]">
+                {actor.timed
+                  ? actor.freq !== undefined
+                    ? `Timed - ${actor.freq} Hz`
+                    : actor.period !== undefined
+                      ? `Timed - ${actor.period} ms`
+                      : "Timed - ?"
+                  : "Untimed"}
+              </span>
+            </div>
+          ),
+        },
+        position:
+          actorPositions?.[actor.id] ??
+          autoLayout[actor.id] ??
+          defaultPosition(idx),
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top,
+        selectable: false,
+        draggable: false,
+        style: {
+          borderRadius: 18,
+          padding: "14px 16px",
+          border: isSelected
             ? "2px solid var(--accent)"
             : "1px solid var(--panel-border)",
-        background: actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)",
-        color: "var(--foreground)",
-        boxShadow: "0 16px 30px rgba(0, 0, 0, 0.1)",
-        minWidth: 160,
-      },
-    }));
-  }, [model.actors, actorPositions, selectedActorId]);
+          background: actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)",
+          color: "var(--foreground)",
+          boxShadow: isSelected
+            ? "0 0 16px rgba(99, 102, 241, 0.3)"
+            : "0 16px 30px rgba(0, 0, 0, 0.1)",
+          minWidth: 160,
+          opacity: dimmed ? 0.2 : 1,
+          transition: "opacity 0.2s ease, border 0.2s ease, box-shadow 0.2s ease",
+        },
+      };
+    });
+  }, [model.actors, model.channels, actorPositions, selectedActorId, hasFocus, connectedActorIds, autoLayout]);
 
   const edges = useMemo<Edge[]>(() => {
-    return model.channels.map((channel) => ({
-      id: channel.id,
-      source: channel.src,
-      target: channel.dst,
-      label: `${channel.rateSrc} -> ${channel.rateDst}`,
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color:
-          channel.id === selectedChannelId
-            ? "var(--edge-active)"
-            : "var(--edge)",
-      },
-      style: {
-        stroke:
-          channel.id === selectedChannelId
-            ? "var(--edge-active)"
-            : "var(--edge)",
-        strokeWidth: channel.id === selectedChannelId ? 2.2 : 1.4,
-      },
-      labelStyle: {
-        fill: "var(--foreground)",
-        fontSize: 11,
-        fontWeight: 600,
-      },
-      labelBgPadding: [8, 4],
-      labelBgBorderRadius: 10,
-      labelBgStyle: {
-        fill: "var(--panel)",
-        fillOpacity: 0.9,
-        stroke: "var(--panel-border)",
-        strokeWidth: 1,
-      },
-    }));
-  }, [model.channels, selectedChannelId]);
+    return model.channels.map((channel) => {
+      const isConnectedToSelected = selectedActorId
+        ? channel.src === selectedActorId || channel.dst === selectedActorId
+        : false;
+      const dimmed = hasFocus && !isConnectedToSelected;
+      const isChannelSelected = channel.id === selectedChannelId;
+      return {
+        id: channel.id,
+        source: channel.src,
+        target: channel.dst,
+        label: `${channel.rateSrc} -> ${channel.rateDst}`,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: isConnectedToSelected
+            ? "var(--accent)"
+            : isChannelSelected
+              ? "var(--edge-active)"
+              : "var(--edge)",
+        },
+        style: {
+          stroke: isConnectedToSelected
+            ? "var(--accent)"
+            : isChannelSelected
+              ? "var(--edge-active)"
+              : "var(--edge)",
+          strokeWidth: isConnectedToSelected || isChannelSelected ? 2.2 : 1.4,
+          opacity: dimmed ? 0.15 : 1,
+          transition: "opacity 0.2s ease, stroke 0.2s ease",
+        },
+        labelStyle: {
+          fill: "var(--foreground)",
+          fontSize: 11,
+          fontWeight: 600,
+          opacity: dimmed ? 0.15 : 1,
+          transition: "opacity 0.2s ease",
+        },
+        labelBgPadding: [8, 4],
+        labelBgBorderRadius: 10,
+        labelBgStyle: {
+          fill: "var(--panel)",
+          fillOpacity: 0.9,
+          stroke: "var(--panel-border)",
+          strokeWidth: 1,
+          opacity: dimmed ? 0.15 : 1,
+          transition: "opacity 0.2s ease",
+        },
+      };
+    });
+  }, [model.channels, selectedChannelId, selectedActorId, hasFocus]);
 
   const handleExport = useCallback(
     async (format: "svg" | "png" | "jpg") => {

@@ -11,6 +11,7 @@ import {
 import ReactFlow, {
   Background,
   Controls,
+  MarkerType,
   Position,
   SelectionMode,
   type Connection,
@@ -68,7 +69,9 @@ function InitEdge({
   const rateSrc = data?.rateSrc as string | undefined;
   const rateDst = data?.rateDst as string | undefined;
   const init = data?.init as string | undefined;
+  const dimmed = data?.dimmed as boolean | undefined;
   const hasInit = init && init !== "0";
+  const labelOpacity = dimmed ? 0.15 : 1;
 
   // Position near source (20% along the edge) and near target (80%)
   const t = 0.18;
@@ -86,6 +89,8 @@ function InitEdge({
           style={{
             ...RATE_LABEL_STYLE,
             transform: `translate(-50%, -50%) translate(${srcLabelX}px,${srcLabelY}px)`,
+            opacity: labelOpacity,
+            transition: "opacity 0.2s ease",
           }}
           className="nodrag nopan"
         >
@@ -96,6 +101,8 @@ function InitEdge({
           style={{
             ...RATE_LABEL_STYLE,
             transform: `translate(-50%, -50%) translate(${dstLabelX}px,${dstLabelY}px)`,
+            opacity: labelOpacity,
+            transition: "opacity 0.2s ease",
           }}
           className="nodrag nopan"
         >
@@ -121,6 +128,8 @@ function InitEdge({
               color: "var(--foreground)",
               background: "var(--background)",
               lineHeight: 1,
+              opacity: labelOpacity,
+              transition: "opacity 0.2s ease",
             }}
             className="nodrag nopan"
           >
@@ -272,49 +281,77 @@ function VisualEditorInner() {
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
 
+  const connectedActorIds = useMemo(() => {
+    const set = new Set<string>();
+    if (selectedActorId) {
+      set.add(selectedActorId);
+      model.channels.forEach((ch) => {
+        if (ch.src === selectedActorId) set.add(ch.dst);
+        if (ch.dst === selectedActorId) set.add(ch.src);
+      });
+    }
+    return set;
+  }, [selectedActorId, model.channels]);
+
+  const hasFocus = !!selectedActorId;
+
   const derivedNodes = useMemo<Node[]>(() => {
-    return model.actors.map((actor, idx) => ({
-      id: actor.id,
-      data: {
-        label: (
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-semibold text-[color:var(--foreground)]">
-              {actor.label ?? actor.id}
-            </span>
-            <span className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted)]">
-              {actor.timed
-                ? actor.freq
-                  ? `${actor.freq} HZ`
-                  : actor.period
-                    ? `${actor.period} MS`
-                    : "TIMED"
-                : "UNTIMED"}
-            </span>
-            {actor.timed && actor.phase != null && String(actor.phase) !== "0" && String(actor.phase) !== "" && (
-              <span className="text-[10px] tracking-[0.08em]" style={{ color: "#c0392b" }}>
-                +{String(actor.phase)} ms
+    return model.actors.map((actor, idx) => {
+      const dimmed = hasFocus && !connectedActorIds.has(actor.id);
+      const isSelected = actor.id === selectedActorId;
+      return {
+        id: actor.id,
+        data: {
+          label: (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-[color:var(--foreground)]">
+                {actor.label ?? actor.id}
               </span>
-            )}
-          </div>
-        ),
-      },
-      position: actorPositions?.[actor.id] ?? defaultPosition(idx),
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
-      style: {
-        borderRadius: 14,
-        padding: 12,
-        border: "1px solid var(--panel-border)",
-        background: actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)",
-        color: "var(--foreground)",
-        boxShadow: "0 8px 16px rgba(0, 0, 0, 0.08)",
-        minWidth: 150,
-      },
-    }));
-  }, [model.actors, actorPositions]);
+              <span className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--muted)]">
+                {actor.timed
+                  ? actor.freq
+                    ? `${actor.freq} HZ`
+                    : actor.period
+                      ? `${actor.period} MS`
+                      : "TIMED"
+                  : "UNTIMED"}
+              </span>
+              {actor.timed && actor.phase != null && String(actor.phase) !== "0" && String(actor.phase) !== "" && (
+                <span className="text-[10px] tracking-[0.08em]" style={{ color: "#c0392b" }}>
+                  +{String(actor.phase)} ms
+                </span>
+              )}
+            </div>
+          ),
+        },
+        position: actorPositions?.[actor.id] ?? defaultPosition(idx),
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+        style: {
+          borderRadius: 14,
+          padding: 12,
+          border: isSelected
+            ? "2px solid var(--accent)"
+            : "1px solid var(--panel-border)",
+          background: actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)",
+          color: "var(--foreground)",
+          boxShadow: isSelected
+            ? "0 0 16px rgba(99, 102, 241, 0.3)"
+            : "0 8px 16px rgba(0, 0, 0, 0.08)",
+          minWidth: 150,
+          opacity: dimmed ? 0.2 : 1,
+          transition: "opacity 0.2s ease, border 0.2s ease, box-shadow 0.2s ease",
+        },
+      };
+    });
+  }, [model.actors, model.channels, actorPositions, selectedActorId, hasFocus, connectedActorIds]);
 
   const derivedEdges = useMemo<Edge[]>(() => {
     return model.channels.map((channel) => {
+      const isConnected = selectedActorId
+        ? channel.src === selectedActorId || channel.dst === selectedActorId
+        : false;
+      const dimmed = hasFocus && !isConnected;
       return {
         id: channel.id,
         source: channel.src,
@@ -324,14 +361,20 @@ function VisualEditorInner() {
           rateSrc: channel.rateSrc,
           rateDst: channel.rateDst.replace(/^-/, ""),
           init: channel.init,
+          dimmed,
         },
+        markerEnd: isConnected
+          ? { type: MarkerType.ArrowClosed, color: "var(--accent)" }
+          : undefined,
         style: {
-          stroke: "var(--edge)",
-          strokeWidth: 1.4,
+          stroke: isConnected ? "var(--accent)" : "var(--edge)",
+          strokeWidth: isConnected ? 2.2 : 1.4,
+          opacity: dimmed ? 0.15 : 1,
+          transition: "opacity 0.2s ease, stroke 0.2s ease, stroke-width 0.2s ease",
         },
       };
     });
-  }, [model.channels]);
+  }, [model.channels, selectedActorId, hasFocus]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(derivedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(derivedEdges);
