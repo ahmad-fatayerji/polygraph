@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import type { ReactNode } from "react";
 
 type ToolbarProps = {
   onValidate: () => void;
   onExecute: () => void;
+  onAutoDephase: () => void;
   onReset: () => void;
   status: "idle" | "running";
   cycles: number;
@@ -50,6 +51,7 @@ const ToolbarButton = ({
 export default function Toolbar({
   onValidate,
   onExecute,
+  onAutoDephase,
   onReset,
   status,
   cycles,
@@ -103,6 +105,13 @@ export default function Toolbar({
           disabled={status === "running"}
         >
           Execute
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={onAutoDephase}
+          variant="outline"
+          disabled={status === "running"}
+        >
+          Auto Dephase
         </ToolbarButton>
         <ToolbarButton
           onClick={onReset}

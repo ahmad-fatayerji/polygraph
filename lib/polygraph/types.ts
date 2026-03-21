@@ -143,3 +143,28 @@ export type VerifyOptions = {
   captureDetailedTrace?: boolean;
 };
 
+export type WorkerRequest =
+  | {
+      kind?: "verify";
+      model: PolyGraphModel;
+      options?: VerifyOptions;
+    }
+  | {
+      kind: "optimize-dephasing";
+      model: PolyGraphModel;
+    };
+
+export type WorkerResponse =
+  | ExecutionResult
+  | {
+      kind: "optimize-dephasing";
+      ok: boolean;
+      model: PolyGraphModel;
+      diagnostics: Diagnostic[];
+      metrics?: {
+        tickCount: number | null;
+        baseTick: string | null;
+        phaseQuantum: string | null;
+      };
+    };
+

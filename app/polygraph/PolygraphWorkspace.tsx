@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   Diagnostic,
   ExecutionResult,
   PolyGraphModel,
+  WorkerResponse,
 } from "@/lib/polygraph/types";
 import Toolbar from "./components/Toolbar";
 import EditorPanel from "./components/EditorPanel";
@@ -32,6 +33,7 @@ const isRenderableModel = (value: unknown): value is PolyGraphModel =>
 
 export default function PolygraphWorkspace() {
   const jsonText = usePolygraphStore((state) => state.jsonText);
+  const applyJsonText = usePolygraphStore((state) => state.applyJsonText);
   const setDiagnostics = usePolygraphStore((state) => state.setDiagnostics);
   const setExecution = usePolygraphStore((state) => state.setExecution);
   const setExecutionModel = usePolygraphStore(
@@ -41,7 +43,9 @@ export default function PolygraphWorkspace() {
   const reset = usePolygraphStore((state) => state.reset);
 
   const workerRef = useRef<Worker | null>(null);
-  const pendingRunRef = useRef<"validate" | "execute" | null>(null);
+  const pendingRunRef = useRef<
+    "validate" | "execute" | "optimize-dephasing" | null
+  >(null);
   const lastExecutionModelRef = useRef<PolyGraphModel | null>(null);
   const [status, setStatus] = useState<"idle" | "running">("idle");
   const [cycles, setCycles] = useState(1);
@@ -56,12 +60,26 @@ export default function PolygraphWorkspace() {
     });
     workerRef.current = worker;
 
-    worker.onmessage = (event: MessageEvent<ExecutionResult>) => {
+    worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
       const result = event.data;
-      setDiagnostics(result.diagnostics);
+
+      if ("kind" in result && result.kind === "optimize-dephasing") {
+        setDiagnostics(result.diagnostics);
+        if (result.ok) {
+          applyJsonText(JSON.stringify(result.model, null, 2));
+          setExecution(undefined);
+          setExecutionModel(undefined);
+        }
+        pendingRunRef.current = null;
+        setStatus("idle");
+        return;
+      }
+
+      const verificationResult = result as ExecutionResult;
+      setDiagnostics(verificationResult.diagnostics);
       if (pendingRunRef.current === "execute") {
-        const hasArtifacts = Boolean(result.artifacts);
-        setExecution(hasArtifacts ? result : undefined);
+        const hasArtifacts = Boolean(verificationResult.artifacts);
+        setExecution(hasArtifacts ? verificationResult : undefined);
         setExecutionModel(
           hasArtifacts
             ? (lastExecutionModelRef.current ?? undefined)
@@ -92,7 +110,7 @@ export default function PolygraphWorkspace() {
       worker.terminate();
       workerRef.current = null;
     };
-  }, [setDiagnostics, setExecution, setExecutionModel]);
+  }, [applyJsonText, setDiagnostics, setExecution, setExecutionModel]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = "light";
@@ -153,6 +171,7 @@ export default function PolygraphWorkspace() {
       pendingRunRef.current = computeExecution ? "execute" : "validate";
       setStatus("running");
       workerRef.current.postMessage({
+        kind: "verify",
         model,
         options: { computeExecution, cycles, captureDetailedTrace },
       });
@@ -168,14 +187,65 @@ export default function PolygraphWorkspace() {
     ],
   );
 
+  const runAutoDephase = useCallback(() => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      setDiagnostics([
+        {
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: "JSON parse error: unable to parse the model.",
+        },
+      ]);
+      setStatus("idle");
+      return;
+    }
+
+    if (!isRenderableModel(parsed)) {
+      setDiagnostics([
+        {
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message:
+            "Model must include actors/channels arrays with string ids and endpoints.",
+        },
+      ]);
+      setStatus("idle");
+      return;
+    }
+
+    if (!workerRef.current) {
+      setDiagnostics([
+        {
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: "Verifier worker is not available.",
+        },
+      ]);
+      setStatus("idle");
+      return;
+    }
+
+    const model = parsed as PolyGraphModel;
+    setModel(model, "json");
+    pendingRunRef.current = "optimize-dephasing";
+    setStatus("running");
+    workerRef.current.postMessage({
+      kind: "optimize-dephasing",
+      model,
+    });
+  }, [jsonText, setDiagnostics, setModel]);
+
   return (
     <div className="h-[100dvh] overflow-hidden bg-[color:var(--panel)] text-[color:var(--foreground)]">
       <div className="animate-float-in flex h-full min-h-0 flex-col overflow-hidden">
-        {/* Toolbar */}
         <div className="shrink-0 border-b border-[color:var(--panel-border)] px-4 py-3">
           <Toolbar
             onValidate={() => runVerification(false)}
             onExecute={() => runVerification(true)}
+            onAutoDephase={runAutoDephase}
             onReset={reset}
             status={status}
             cycles={cycles}
@@ -185,12 +255,11 @@ export default function PolygraphWorkspace() {
           />
           {status === "running" && (
             <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-              Verifying… running in worker
+              Running… worker active
             </p>
           )}
         </div>
 
-        {/* Tab bar */}
         <div className="shrink-0 flex items-end gap-1 border-b border-[color:var(--panel-border)] px-4 bg-[color:var(--panel)]">
           {(
             [
@@ -227,7 +296,6 @@ export default function PolygraphWorkspace() {
           ))}
         </div>
 
-        {/* Tab content */}
         <div className="min-h-0 flex-1 overflow-hidden">
           <div
             className={`h-full min-h-0 pt-4 ${activeTab === "editor" ? "block" : "hidden"}`}
