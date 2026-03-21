@@ -22,6 +22,9 @@ export default function ScheduleView({
 
   return (
     <div className="space-y-3 pb-2">
+      <p className="text-xs text-[color:var(--muted)]">
+        Showing active ticks only.
+      </p>
       {schedule.map((entry) => (
         <div
           key={`tick-${entry.tick}`}
@@ -36,18 +39,14 @@ export default function ScheduleView({
             </span>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            {entry.fires.length === 0 ? (
-              <span className="text-sm text-[color:var(--muted)]">No firings</span>
-            ) : (
-              entry.fires.map((actorId, idx) => (
-                <span
-                  key={`${actorId}-${idx}`}
-                  className="rounded-full bg-[color:var(--chip)] px-3 py-1 text-xs font-semibold text-[color:var(--chip-text)]"
-                >
-                  {actorLabels.get(actorId) ?? actorId}
-                </span>
-              ))
-            )}
+            {entry.fires.map((actorId, idx) => (
+              <span
+                key={`${actorId}-${idx}`}
+                className="rounded-full bg-[color:var(--chip)] px-3 py-1 text-xs font-semibold text-[color:var(--chip-text)]"
+              >
+                {actorLabels.get(actorId) ?? actorId}
+              </span>
+            ))}
           </div>
         </div>
       ))}

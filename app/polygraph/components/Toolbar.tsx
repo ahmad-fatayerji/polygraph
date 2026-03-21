@@ -9,6 +9,8 @@ type ToolbarProps = {
   status: "idle" | "running";
   cycles: number;
   onCyclesChange: (cycles: number) => void;
+  captureDetailedTrace: boolean;
+  onCaptureDetailedTraceChange: (captureDetailedTrace: boolean) => void;
 };
 
 const ToolbarButton = ({
@@ -52,6 +54,8 @@ export default function Toolbar({
   status,
   cycles,
   onCyclesChange,
+  captureDetailedTrace,
+  onCaptureDetailedTraceChange,
 }: ToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -81,6 +85,15 @@ export default function Toolbar({
             className="w-10 rounded bg-[color:var(--panel-muted)] px-1.5 py-0.5 text-center text-xs font-semibold text-[color:var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--focus-ring)]"
           />
         </div>
+        <label className="flex items-center gap-2 rounded-full border border-[color:var(--panel-border)] px-3 py-1.5 text-xs font-medium text-[color:var(--muted)]">
+          <input
+            type="checkbox"
+            checked={captureDetailedTrace}
+            onChange={(e) => onCaptureDetailedTraceChange(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] text-[color:var(--accent)] focus:ring-[color:var(--focus-ring)]"
+          />
+          Full trace
+        </label>
         <ToolbarButton onClick={onValidate} disabled={status === "running"}>
           Validate
         </ToolbarButton>

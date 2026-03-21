@@ -449,6 +449,7 @@ export const verify = (
   let timingComputation:
     | ReturnType<typeof computeTimingAndWorstCasePath>
     | undefined;
+  let timingFeasible = true;
 
   try {
     timingComputation = computeTimingAndWorstCasePath(
@@ -456,6 +457,7 @@ export const verify = (
       liveness.artifacts,
       consistency.repetition.timing
     );
+    timingFeasible = timingComputation.feasible;
     for (const diag of timingComputation.diagnostics) {
       diagnostics.push(diag);
     }
@@ -483,7 +485,7 @@ export const verify = (
   }
 
   return {
-    ok: true,
+    ok: timingFeasible,
     diagnostics,
     artifacts: liveness.artifacts
       ? {

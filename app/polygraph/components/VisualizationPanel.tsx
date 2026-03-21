@@ -18,6 +18,7 @@ export default function VisualizationPanel() {
   const execution = usePolygraphStore((state) => state.execution);
   const hasExecutionModel = Boolean(executionModel);
   const renderModel = executionModel;
+  const hasDetailedTrace = Boolean(execution?.artifacts?.detailedTrace?.length);
 
   const [viewMode, setViewMode] = useState<"summary" | "detailed">("summary");
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -174,11 +175,12 @@ export default function VisualizationPanel() {
                 <button
                   key={fmt}
                   type="button"
+                  disabled={!hasDetailedTrace}
                   onClick={() => {
                     action();
                     setExportMenuOpen(false);
                   }}
-                  className="flex w-full items-center justify-between px-3 py-2 text-sm text-[color:var(--foreground)] transition-colors hover:bg-[color:var(--panel-muted)]"
+                  className="flex w-full items-center justify-between px-3 py-2 text-sm text-[color:var(--foreground)] transition-colors hover:bg-[color:var(--panel-muted)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <span>{label}</span>
                   <span className="rounded border border-[color:var(--panel-border)] px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-[color:var(--muted)]">
@@ -186,6 +188,11 @@ export default function VisualizationPanel() {
                   </span>
                 </button>
               ))}
+              {!hasDetailedTrace ? (
+                <p className="px-3 pb-2 text-[10px] text-[color:var(--muted)]">
+                  Enable Full trace before Execute to export the detailed table.
+                </p>
+              ) : null}
 
               <div className="mx-3 my-1 border-t border-[color:var(--panel-border)]" />
 

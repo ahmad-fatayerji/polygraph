@@ -28,6 +28,7 @@ type TimingComputationResult = {
   diagnostics: Diagnostic[];
   timingAnalysis?: TimingAnalysisArtifact;
   worstCasePath?: WorstCasePathArtifact;
+  feasible: boolean;
 };
 
 type FiringNode = {
@@ -212,7 +213,8 @@ const buildLegacyOccurrences = (
     model.actors.map((actor) => [actor.id, parseExecutionTimeLegacy(actor.executionTime)])
   );
   const byActor = new Map<string, LegacyFiringOccurrence[]>();
-  const totalTicks = schedule.length;
+  const totalTicks =
+    schedule.reduce((max, entry) => Math.max(max, entry.tick), -1) + 1;
 
   let cpuAvailable = rationalZero;
   for (let cycleIndex = 0; cycleIndex < 2; cycleIndex += 1) {
@@ -427,7 +429,6 @@ const buildTimingModel = (
   timing: TimingInfo | undefined
 ) => {
   const actorById = new Map(model.actors.map((actor) => [actor.id, actor]));
-  const jobByKey = new Map<string, FiringNode>();
   const nodes: FiringNode[] = [];
 
   const fallbackHyperperiodMs = timing ? msFromSeconds(timing.hyperperiod) : { n: 1n, d: 1n };
@@ -473,10 +474,12 @@ const buildTimingModel = (
       pu: { ...au },
       rl,
       ru,
-      es: { ...al },
-      ls: { ...al },
-      ef: add(al, bcet),
-      lf: add(al, wcet),
+      // Interval-based RTA is initialized only after the absolute execution
+      // windows [pl, pu] have been propagated with BCET budgets.
+      es: zero(),
+      ls: zero(),
+      ef: zero(),
+      lf: zero(),
       bcif: zero(),
       wcif: zero(),
       bcet,
@@ -485,7 +488,6 @@ const buildTimingModel = (
       processor: Number.isFinite(actor.processor) ? actor.processor! : 0,
     };
 
-    jobByKey.set(key, node);
     nodes.push(node);
   }
 
@@ -505,21 +507,25 @@ const buildTimingModel = (
     if (!cumulative) return;
     const produced = parseCumulativeTrace(cumulative.produced);
     const consumed = parseCumulativeTrace(cumulative.consumed);
+    const initParsed = parseRational(String(channel.init));
+    const initialTokens = initParsed.ok ? initParsed.value : zero();
 
     for (let p = 1; p < consumed.length; p += 1) {
-      const tokensNeeded = consumed[p];
-      const n = findProducerFiringIndex(produced, tokensNeeded);
+      const tokensNeededFromProducer = sub(consumed[p], initialTokens);
+      const n = findProducerFiringIndex(produced, tokensNeededFromProducer);
       if (n === null || n <= 0) continue;
 
       const predKey = `${channel.src}#${n}`;
       const succKey = `${channel.dst}#${p}`;
-      if (!jobByKey.has(predKey) || !jobByKey.has(succKey)) continue;
+      const hasPred = nodes.some((node) => node.key === predKey);
+      const hasSucc = nodes.some((node) => node.key === succKey);
+      if (!hasPred || !hasSucc) continue;
       outgoing.get(predKey)?.add(succKey);
       incoming.get(succKey)?.add(predKey);
     }
   });
 
-  return { nodes, jobByKey, outgoing, incoming };
+  return { nodes, outgoing, incoming };
 };
 
 const propagateFrames = (
@@ -561,9 +567,9 @@ const propagateFrames = (
         const pred = byKey.get(predKey);
         if (!pred) return;
         nextAl = maxRational(nextAl, pred.rl);
-        nextPl = maxRational(nextPl, maxRational(pred.rl, add(pred.pl, pred.wcet)));
+        nextPl = maxRational(nextPl, maxRational(pred.rl, add(pred.pl, pred.bcet)));
         nextAu = maxRational(nextAu, pred.ru);
-        nextPu = maxRational(nextPu, add(pred.pu, node.wcet));
+        nextPu = maxRational(nextPu, add(pred.pu, node.bcet));
       });
 
       if (compare(nextAl, node.al) !== 0) {
@@ -592,11 +598,20 @@ const propagateFrames = (
         });
       }
 
-      if (compare(add(node.pl, node.wcet), node.pu) > 0) {
+      if (compare(add(node.pl, node.bcet), node.pu) > 0) {
         diagnostics.push({
           id: "E_TOPOLOGY_INVALID",
           severity: "error",
-          message: `Infeasible pessimistic frame for firing ${node.actorId}#${node.firingIndex}: pl + WCET > pu.`,
+          message: `Infeasible pessimistic frame for firing ${node.actorId}#${node.firingIndex}: pl + BCET > pu.`,
+          where: { actorId: node.actorId },
+        });
+      }
+
+      if (compare(node.pu, node.ru) > 0) {
+        diagnostics.push({
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: `Infeasible pessimistic frame for firing ${node.actorId}#${node.firingIndex}: pu > ru.`,
           where: { actorId: node.actorId },
         });
       }
@@ -608,12 +623,23 @@ const propagateFrames = (
   return diagnostics;
 };
 
+const initializeIntervalRta = (nodes: FiringNode[]) => {
+  nodes.forEach((node) => {
+    node.es = { ...node.pl };
+    node.ls = { ...node.pl };
+    node.ef = add(node.pl, node.bcet);
+    node.lf = add(node.pl, node.wcet);
+    node.bcif = zero();
+    node.wcif = zero();
+  });
+};
+
 const checkAbsoluteWindows = (nodes: FiringNode[]): Diagnostic[] => {
   const diagnostics: Diagnostic[] = [];
   const violations = new Map<string, { count: number; firstFiring: number }>();
 
   nodes.forEach((node) => {
-    if (compare(add(node.al, node.wcet), node.au) <= 0) return;
+    if (compare(add(node.pl, node.wcet), node.pu) <= 0) return;
     const current = violations.get(node.actorId);
     if (!current) {
       violations.set(node.actorId, { count: 1, firstFiring: node.firingIndex });
@@ -626,35 +652,42 @@ const checkAbsoluteWindows = (nodes: FiringNode[]): Diagnostic[] => {
   violations.forEach((value, actorId) => {
     diagnostics.push({
       id: "E_TOPOLOGY_INVALID",
-      severity: "warn",
+      severity: "error",
       message:
         value.count === 1
-          ? `Absolute timing window may be too small for actor ${actorId} at firing #${value.firstFiring} (al + WCET > au).`
-          : `Absolute timing window may be too small for actor ${actorId} on ${value.count} firings (first at #${value.firstFiring}).`,
+          ? `Absolute execution window is too short for actor ${actorId} at firing #${value.firstFiring} (aes + WCET > alf).`
+          : `Absolute execution window is too short for actor ${actorId} on ${value.count} firings (first at #${value.firstFiring}).`,
       where: { actorId },
-      hint: "This timing analysis is conservative. Add BCET/jitter/priority/processor metadata to refine bounds.",
+      hint: "The paper treats this as a proof of infeasibility: no scheduler can fit WCET within that absolute execution window.",
     });
   });
 
   return diagnostics;
 };
 
+type IntervalRtaResult = {
+  diagnostics: Diagnostic[];
+  guaranteed: boolean;
+};
+
 const runIntervalRta = (
   nodes: FiringNode[],
   outgoing: EdgeMap,
   incoming: EdgeMap
-): Diagnostic[] => {
+): IntervalRtaResult => {
   const diagnostics: Diagnostic[] = [];
   const byKey = new Map(nodes.map((node) => [node.key, node]));
   const order = topologicalOrder(nodes, outgoing);
   const reachability = buildReachability(outgoing);
   const warnedPossibleByActor = new Map<string, Set<number>>();
-  const warnedCertainByActor = new Map<string, Set<number>>();
+  const failedCertainByActor = new Map<string, Set<number>>();
+  let converged = false;
+  let certainMiss = false;
 
   let changed = true;
   let iterations = 0;
 
-  while (changed) {
+  while (changed && !certainMiss) {
     changed = false;
     iterations += 1;
     if (iterations > MAX_RELAX_ITERS) {
@@ -662,9 +695,9 @@ const runIntervalRta = (
         id: "E_TOPOLOGY_INVALID",
         severity: "warn",
         message: "Interval RTA reached the safety iteration bound; continuing with conservative intermediate bounds.",
-        hint: "This can occur with cyclic precedence and dense interference sets. Reported timing may be pessimistic.",
+        hint: "The paper only proves schedulability after fix-point convergence. Without convergence, feasibility is not guaranteed.",
       });
-      break;
+      return { diagnostics, guaranteed: false };
     }
 
     const wcifContributors = new Map<string, Set<string>>();
@@ -674,8 +707,8 @@ const runIntervalRta = (
       if (!node) continue;
       const predecessors = incoming.get(key) ?? new Set<string>();
 
-      let nextEs = node.es;
-      let nextLs = node.ls;
+      let nextEs = node.pl;
+      let nextLs = node.pl;
       predecessors.forEach((predKey) => {
         const pred = byKey.get(predKey);
         if (!pred) return;
@@ -699,14 +732,14 @@ const runIntervalRta = (
 
         if (
           compare(interferer.es, nextLs) >= 0 &&
-          compare(interferer.ls, add(nextEs, node.bcet)) <= 0
+          compare(interferer.ls, node.ef) <= 0
         ) {
           bcif = add(bcif, interferer.bcet);
         }
 
         const noOverlap =
           compare(interferer.lf, nextEs) < 0 ||
-          compare(interferer.ef, add(nextLs, node.wcet)) > 0;
+          compare(interferer.es, node.lf) > 0;
 
         if (!noOverlap && !accountedWcif.has(interferer.key)) {
           const predecessorKeys = reachability.predecessorsOf(node.key);
@@ -745,50 +778,73 @@ const runIntervalRta = (
       node.bcif = bcif;
       node.wcif = wcif;
 
-      if (compare(node.lf, node.au) > 0) {
+      if (compare(node.lf, node.pu) > 0) {
         if (!warnedPossibleByActor.has(node.actorId)) {
           warnedPossibleByActor.set(node.actorId, new Set<number>());
         }
         warnedPossibleByActor.get(node.actorId)!.add(node.firingIndex);
       }
 
-      if (compare(node.ef, node.au) > 0) {
-        if (!warnedCertainByActor.has(node.actorId)) {
-          warnedCertainByActor.set(node.actorId, new Set<number>());
+      if (compare(node.ef, node.pu) > 0) {
+        if (!failedCertainByActor.has(node.actorId)) {
+          failedCertainByActor.set(node.actorId, new Set<number>());
         }
-        warnedCertainByActor.get(node.actorId)!.add(node.firingIndex);
+        failedCertainByActor.get(node.actorId)!.add(node.firingIndex);
+        certainMiss = true;
       }
+    }
+
+    if (!changed) {
+      converged = true;
     }
   }
 
   warnedPossibleByActor.forEach((firings, actorId) => {
-    const firingList = Array.from(firings).sort((a, b) => a - b);
+    const certainFirings = failedCertainByActor.get(actorId) ?? new Set<number>();
+    const firingList = Array.from(firings)
+      .filter((firing) => !certainFirings.has(firing))
+      .sort((a, b) => a - b);
+    if (firingList.length === 0) return;
     diagnostics.push({
-      id: "E_NOT_LIVE",
+      id: "E_TOPOLOGY_INVALID",
       severity: "warn",
       message:
         firingList.length === 1
-          ? `Deadline miss possible for actor ${actorId} at firing #${firingList[0]} (lf > au).`
-          : `Deadline miss possible for actor ${actorId} on ${firingList.length} firings (first at #${firingList[0]}).`,
+          ? `Schedulability is not guaranteed for actor ${actorId} at firing #${firingList[0]} (lf > alf).`
+          : `Schedulability is not guaranteed for actor ${actorId} on ${firingList.length} firings (first at #${firingList[0]}).`,
       where: { actorId },
     });
   });
 
-  warnedCertainByActor.forEach((firings, actorId) => {
+  failedCertainByActor.forEach((firings, actorId) => {
     const firingList = Array.from(firings).sort((a, b) => a - b);
     diagnostics.push({
-      id: "E_NOT_LIVE",
-      severity: "warn",
+      id: "E_TOPOLOGY_INVALID",
+      severity: "error",
       message:
         firingList.length === 1
-          ? `Deadline miss appears certain for actor ${actorId} at firing #${firingList[0]} (ef > au) under current conservative assumptions.`
-          : `Deadline miss appears certain for actor ${actorId} on ${firingList.length} firings (first at #${firingList[0]}) under current conservative assumptions.`,
+          ? `Deadline miss is certain for actor ${actorId} at firing #${firingList[0]} (ef > alf).`
+          : `Deadline miss is certain for actor ${actorId} on ${firingList.length} firings (first at #${firingList[0]}).`,
       where: { actorId },
-      hint: "Provide BCET/priority/processor/jitter for tighter analysis, or treat this as a strict failure in a future strict mode.",
+      hint: "The paper returns immediately in that case: the job finishes after the absolute execution window even in the best-case interference scenario.",
     });
   });
 
-  return diagnostics;
+  if (!converged && !certainMiss) {
+    diagnostics.push({
+      id: "E_TOPOLOGY_INVALID",
+      severity: "warn",
+      message: "Interval RTA did not reach a fix point, so schedulability could not be proven.",
+      hint: "The article only declares the system schedulable after fix-point convergence.",
+    });
+  }
+
+  const guaranteed =
+    converged &&
+    warnedPossibleByActor.size === 0 &&
+    failedCertainByActor.size === 0;
+
+  return { diagnostics, guaranteed };
 };
 
 const computePathBound = (
@@ -825,7 +881,7 @@ const computePathBound = (
     for (let idx = 1; idx < path.length; idx += 1) {
       const actorJobs = byActor.get(path[idx]) ?? [];
       const previous = chain[chain.length - 1];
-      const next = actorJobs.find((job) => compare(job.al, previous.ef) >= 0);
+      const next = actorJobs.find((job) => compare(job.es, previous.ef) >= 0);
       if (!next) {
         valid = false;
         break;
@@ -838,9 +894,9 @@ const computePathBound = (
     const sink = chain[chain.length - 1];
     const executionCost = chain.reduce((acc, job) => add(acc, job.wcet), zero());
     const contentionCost = chain.reduce((acc, job) => add(acc, job.wcif), zero());
-    const duration = sub(sink.lf, source.al);
-    const bestCaseDuration = sub(sink.ef, source.al);
-    const dataDependencyCost = sub(sub(sink.ls, source.al), executionCost);
+    const duration = sub(sink.lf, source.es);
+    const bestCaseDuration = sub(sink.ef, source.es);
+    const dataDependencyCost = sub(sub(sink.ls, source.es), executionCost);
     const structuralCost = add(dataDependencyCost, contentionCost);
 
     if (worst === null || compare(duration, worst.duration) > 0) {
@@ -874,8 +930,8 @@ const buildWorstPathArtifact = (
   });
   byActor.forEach((list) => {
     list.sort((a, b) => {
-      const byAl = compare(a.al, b.al);
-      if (byAl !== 0) return byAl;
+      const byEs = compare(a.es, b.es);
+      if (byEs !== 0) return byEs;
       return a.firingIndex - b.firingIndex;
     });
   });
@@ -955,36 +1011,52 @@ export const computeTimingAndWorstCasePath = (
   timing: TimingInfo | undefined
 ): TimingComputationResult => {
   if (!artifacts || !artifacts.firingSequence || !artifacts.cumulativeTokenTrace) {
-    return { diagnostics: [] };
+    return { diagnostics: [], feasible: true };
   }
 
   const { nodes, outgoing, incoming } = buildTimingModel(model, artifacts, timing);
-  if (nodes.length === 0) return { diagnostics: [] };
+  if (nodes.length === 0) return { diagnostics: [], feasible: true };
 
   const propagationDiagnostics = propagateFrames(nodes, outgoing, incoming);
   if (propagationDiagnostics.some((diag) => diag.severity === "error")) {
     return {
       diagnostics: propagationDiagnostics,
       timingAnalysis: { feasible: false, firingTiming: [] },
+      feasible: false,
     };
   }
 
-  const absoluteDiagnostics = checkAbsoluteWindows(nodes);
+  initializeIntervalRta(nodes);
 
-  const rtaDiagnostics = runIntervalRta(nodes, outgoing, incoming);
-  const hasRtaError = rtaDiagnostics.some((diag) => diag.severity === "error");
-  const hasAbsoluteWarning = absoluteDiagnostics.length > 0;
+  const absoluteDiagnostics = checkAbsoluteWindows(nodes);
+  const hasAbsoluteError = absoluteDiagnostics.some(
+    (diag) => diag.severity === "error"
+  );
+  if (hasAbsoluteError) {
+    return {
+      diagnostics: absoluteDiagnostics,
+      timingAnalysis: {
+        ...buildTimingArtifact(nodes),
+        feasible: false,
+      },
+      worstCasePath:
+        buildWorstPathArtifact(model, nodes) ??
+        buildLegacyWorstPathArtifact(model, artifacts.schedule, timing?.baseTick),
+      feasible: false,
+    };
+  }
+
+  const rta = runIntervalRta(nodes, outgoing, incoming);
 
   return {
-    diagnostics: [...absoluteDiagnostics, ...rtaDiagnostics],
+    diagnostics: [...absoluteDiagnostics, ...rta.diagnostics],
     timingAnalysis: {
       ...buildTimingArtifact(nodes),
-      feasible: !hasRtaError && !hasAbsoluteWarning,
+      feasible: rta.guaranteed,
     },
-    worstCasePath: hasRtaError
-      ? buildLegacyWorstPathArtifact(model, artifacts.schedule, timing?.baseTick)
-      :
-          buildWorstPathArtifact(model, nodes) ??
-          buildLegacyWorstPathArtifact(model, artifacts.schedule, timing?.baseTick),
+    worstCasePath:
+      buildWorstPathArtifact(model, nodes) ??
+      buildLegacyWorstPathArtifact(model, artifacts.schedule, timing?.baseTick),
+    feasible: rta.guaranteed,
   };
 };

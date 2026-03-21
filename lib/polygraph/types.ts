@@ -139,5 +139,7 @@ export type VerifyOptions = {
   computeExecution?: boolean;
   /** Number of minimal cycles to simulate (default: 1). Paper examples often use 2. */
   cycles?: number;
+  /** Capture the full state after every fire/tick event. Expensive on large graphs. */
+  captureDetailedTrace?: boolean;
 };
 

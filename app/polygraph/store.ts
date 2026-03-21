@@ -243,8 +243,7 @@ export const usePolygraphStore = create<PolygraphState>((set) => ({
         },
       };
     }),
-  setDiagnostics: (diagnostics) =>
-    set((state) => ({ diagnostics: [...state.diagnostics, ...diagnostics] })),
+  setDiagnostics: (diagnostics) => set({ diagnostics }),
   clearDiagnostics: () => set({ diagnostics: [] }),
   setExecution: (execution) => set({ execution }),
   setExecutionModel: (model) =>

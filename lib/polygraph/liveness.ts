@@ -17,6 +17,8 @@ export type LivenessResult = {
   artifacts?: ExecutionResult["artifacts"];
 };
 
+const MAX_DETAILED_TRACE_STEPS = 5000;
+
 const initTokenTrace = (channels: ParsedChannel[]) =>
   channels.map((channel) => ({
     channelId: channel.id,
@@ -43,6 +45,7 @@ export const checkLiveness = (
 ): LivenessResult => {
   const diagnostics: Diagnostic[] = [];
   const captureArtifacts = options?.computeExecution ?? true;
+  const captureDetailedTrace = captureArtifacts && (options?.captureDetailedTrace ?? false);
 
   const actorCount = model.actors.length;
   const channelStates: Rational[] = channels.map((channel) => ({ ...channel.init }));
@@ -100,12 +103,17 @@ export const checkLiveness = (
   const actorFiringIndices = model.actors.map(() => 0);
 
   // Detailed trace — captures state at every fire/tick event
-  const detailedTrace: DetailedTraceStep[] = [];
+  const detailedTrace = captureDetailedTrace ? [] as DetailedTraceStep[] : undefined;
   let stateIndex = 1;
+  let detailedTraceTruncated = false;
 
   /** Snapshot the current state into the detailed trace. */
   const snapshotState = (label: string) => {
-    if (!captureArtifacts) return;
+    if (!detailedTrace) return;
+    if (detailedTrace.length >= MAX_DETAILED_TRACE_STEPS) {
+      detailedTraceTruncated = true;
+      return;
+    }
     detailedTrace.push({
       stateIndex,
       label,
@@ -151,7 +159,6 @@ export const checkLiveness = (
   // ----- doTick: τ' = (τ+1) mod π, a' = 0, z^σ += 1 (Def. 8) -----
   const doTick = () => {
     const prevState = stateIndex - 1;
-    if (!scheduleMap.has(zSigma)) scheduleMap.set(zSigma, []);
     zSigma += 1;
     tau = pi > 0 ? (tau + 1) % pi : 0;
     for (let i = 0; i < actorCount; i += 1) tracking[i] = 0n;
@@ -162,7 +169,11 @@ export const checkLiveness = (
   const recordTokens = (tick: number) => {
     if (!tokenTrace) return;
     channelStates.forEach((state, idx) => {
-      tokenTrace[idx].values.push({ tick, tokens: rationalToString(state) });
+      const tokens = rationalToString(state);
+      const values = tokenTrace[idx].values;
+      const previous = values[values.length - 1];
+      if (previous?.tokens === tokens) return;
+      values.push({ tick, tokens });
     });
   };
 
@@ -320,15 +331,22 @@ export const checkLiveness = (
   }
 
   // ----- Build output artifacts -----
-  const scheduleLength = timing ? z : 1;
-  const schedule: Array<{ tick: number; fires: string[] }> = [];
-  for (let t = 0; t < scheduleLength; t += 1) {
-    schedule.push({ tick: t, fires: scheduleMap.get(t) ?? [] });
-  }
+  const schedule = Array.from(scheduleMap.entries())
+    .sort((left, right) => left[0] - right[0])
+    .map(([tick, fires]) => ({ tick, fires }));
 
   // For pure SDF (untimed) graphs, record final token state
   if (captureArtifacts && !timing) {
     recordTokens(1);
+  }
+
+  if (detailedTraceTruncated) {
+    diagnostics.push({
+      id: "W_TRACE_TRUNCATED",
+      severity: "warn",
+      message: `Detailed trace capture was truncated after ${MAX_DETAILED_TRACE_STEPS} states to avoid excessive memory use.`,
+      hint: "Reduce the cycle count or inspect the summary views unless you need a partial event-by-event trace.",
+    });
   }
 
   return {
@@ -346,7 +364,7 @@ export const checkLiveness = (
         tokenTrace,
         firingSequence,
         cumulativeTokenTrace,
-        detailedTrace,
+        ...(detailedTrace ? { detailedTrace } : {}),
       }
       : undefined,
   };

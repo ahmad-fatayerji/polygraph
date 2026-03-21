@@ -426,7 +426,7 @@ const DetailedTraceView = forwardRef<
   if (!trace || trace.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-muted)] p-4 text-sm text-[color:var(--muted)]">
-        Run Execute to generate a detailed trace.
+        The detailed trace is omitted by default to avoid browser memory spikes on large executions.
       </div>
     );
   }

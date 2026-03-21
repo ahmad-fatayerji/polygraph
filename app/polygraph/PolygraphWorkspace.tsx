@@ -45,6 +45,7 @@ export default function PolygraphWorkspace() {
   const lastExecutionModelRef = useRef<PolyGraphModel | null>(null);
   const [status, setStatus] = useState<"idle" | "running">("idle");
   const [cycles, setCycles] = useState(1);
+  const [captureDetailedTrace, setCaptureDetailedTrace] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("editor");
   const [terminalSeen, setTerminalSeen] = useState(0);
   const diagnostics = usePolygraphStore((state) => state.diagnostics);
@@ -153,12 +154,13 @@ export default function PolygraphWorkspace() {
       setStatus("running");
       workerRef.current.postMessage({
         model,
-        options: { computeExecution, cycles },
+        options: { computeExecution, cycles, captureDetailedTrace },
       });
     },
     [
       jsonText,
       cycles,
+      captureDetailedTrace,
       setDiagnostics,
       setExecution,
       setExecutionModel,
@@ -178,6 +180,8 @@ export default function PolygraphWorkspace() {
             status={status}
             cycles={cycles}
             onCyclesChange={setCycles}
+            captureDetailedTrace={captureDetailedTrace}
+            onCaptureDetailedTraceChange={setCaptureDetailedTrace}
           />
           {status === "running" && (
             <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
