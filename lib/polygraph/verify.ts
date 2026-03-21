@@ -14,7 +14,7 @@ import { analyzeGraph, buildTopology } from "./topology";
 import type { ParsedChannel } from "./consistency";
 import { checkConsistency } from "./consistency";
 import { checkLiveness } from "./liveness";
-import { computeWorstCasePath } from "./worstCasePath";
+import { computeTimingAndWorstCasePath } from "./worstCasePath";
 
 const hasErrors = (diagnostics: Diagnostic[]) =>
   diagnostics.some((diag) => diag.severity === "error");
@@ -277,6 +277,84 @@ const validateActors = (model: PolyGraphModel) => {
         });
       }
     }
+
+    if (actor.bcet !== undefined && actor.bcet !== "") {
+      const bcetStr = String(actor.bcet);
+      const bcetResult = parseDurationField(actor.bcet);
+      if (!bcetResult.ok) {
+        diagnostics.push({
+          id: "E_PARSE_RATIONAL",
+          severity: "error",
+          message: `Actor "${actor.id}" has an invalid bcet value: "${bcetStr}". BCET must be an exact non-negative duration in milliseconds.`,
+          where: { actorId: actor.id, field: "bcet" },
+          hint: 'Use an integer like "1" or a fraction like "3/2".',
+        });
+      } else if (compare(bcetResult.value, rationalZero) < 0) {
+        diagnostics.push({
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: `Actor "${actor.id}" has a negative bcet (${bcetStr} ms). BCET must be zero or positive.`,
+          where: { actorId: actor.id, field: "bcet" },
+          hint: 'Set "bcet" to "0" or a positive duration.',
+        });
+      }
+    }
+
+    if (actor.executionTime !== undefined && actor.executionTime !== "" && actor.bcet !== undefined && actor.bcet !== "") {
+      const wcetResult = parseDurationField(actor.executionTime);
+      const bcetResult = parseDurationField(actor.bcet);
+      if (wcetResult.ok && bcetResult.ok && compare(bcetResult.value, wcetResult.value) > 0) {
+        diagnostics.push({
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: `Actor "${actor.id}" has bcet > executionTime. BCET must be less than or equal to WCET.`,
+          where: { actorId: actor.id, field: "bcet" },
+          hint: 'Decrease "bcet" or increase "executionTime" so that BCET <= WCET.',
+        });
+      }
+    }
+
+    if (actor.jitter !== undefined && actor.jitter !== "") {
+      const jitterStr = String(actor.jitter);
+      const jitterResult = parseDurationField(actor.jitter);
+      if (!jitterResult.ok) {
+        diagnostics.push({
+          id: "E_PARSE_RATIONAL",
+          severity: "error",
+          message: `Actor "${actor.id}" has an invalid jitter value: "${jitterStr}". Jitter must be an exact non-negative duration in milliseconds.`,
+          where: { actorId: actor.id, field: "jitter" },
+          hint: 'Use "0" when jitter is unknown, or a positive value like "1/2".',
+        });
+      } else if (compare(jitterResult.value, rationalZero) < 0) {
+        diagnostics.push({
+          id: "E_TOPOLOGY_INVALID",
+          severity: "error",
+          message: `Actor "${actor.id}" has a negative jitter (${jitterStr} ms). Jitter must be zero or positive.`,
+          where: { actorId: actor.id, field: "jitter" },
+          hint: 'Set "jitter" to "0" or a positive duration.',
+        });
+      }
+    }
+
+    if (actor.priority !== undefined && !Number.isInteger(actor.priority)) {
+      diagnostics.push({
+        id: "E_TOPOLOGY_INVALID",
+        severity: "error",
+        message: `Actor "${actor.id}" has a non-integer priority. Priority must be an integer value.`,
+        where: { actorId: actor.id, field: "priority" },
+        hint: 'Use an integer such as 1, 5, or 10 (higher means more urgent).',
+      });
+    }
+
+    if (actor.processor !== undefined && (!Number.isInteger(actor.processor) || actor.processor < 0)) {
+      diagnostics.push({
+        id: "E_TOPOLOGY_INVALID",
+        severity: "error",
+        message: `Actor "${actor.id}" has an invalid processor index. Processor must be a non-negative integer.`,
+        where: { actorId: actor.id, field: "processor" },
+        hint: 'Use 0 for a single-core setup, or 0..N-1 for multi-core deployment.',
+      });
+    }
   });
 
   return diagnostics;
@@ -368,17 +446,50 @@ export const verify = (
     message: "Liveness check passed — the model is deadlock-free. All actors can complete their required executions.",
   });
 
+  let timingComputation:
+    | ReturnType<typeof computeTimingAndWorstCasePath>
+    | undefined;
+
+  try {
+    timingComputation = computeTimingAndWorstCasePath(
+      model,
+      liveness.artifacts,
+      consistency.repetition.timing
+    );
+    for (const diag of timingComputation.diagnostics) {
+      diagnostics.push(diag);
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown runtime error in timing analysis.";
+    const stackLine =
+      error instanceof Error && error.stack
+        ? error.stack
+            .split("\n")
+            .slice(1)
+            .map((line) => line.trim())
+            .find((line) => line.length > 0)
+        : undefined;
+    diagnostics.push({
+      id: "E_TOPOLOGY_INVALID",
+      severity: "warn",
+      message: `Timing analysis crashed and was skipped: ${message}`,
+      hint: stackLine
+        ? `Core structural, consistency, and liveness checks are still valid. First stack frame: ${stackLine}`
+        : "Core structural, consistency, and liveness checks are still valid.",
+    });
+  }
+
   return {
     ok: true,
     diagnostics,
     artifacts: liveness.artifacts
       ? {
           ...liveness.artifacts,
-          worstCasePath: computeWorstCasePath(
-            model,
-            liveness.artifacts.schedule,
-            consistency.repetition.timing?.baseTick
-          ),
+          timingAnalysis: timingComputation?.timingAnalysis,
+          worstCasePath: timingComputation?.worstCasePath,
         }
       : undefined,
   };

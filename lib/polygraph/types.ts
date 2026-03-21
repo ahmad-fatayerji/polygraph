@@ -26,6 +26,9 @@ export type WorstCasePathArtifact = {
   duration: string; // milliseconds, exact rational string
   structuralCost: string; // milliseconds, exact rational string
   executionCost: string; // milliseconds, exact rational string
+  bestCaseDuration?: string; // milliseconds, exact rational string
+  dataDependencyCost?: string; // milliseconds, exact rational string
+  contentionCost?: string; // milliseconds, exact rational string
   path: string[]; // actor ids on the worst path
   pathsAnalyzed: number;
   truncated: boolean;
@@ -34,7 +37,46 @@ export type WorstCasePathArtifact = {
     duration: string; // milliseconds, exact rational string
     structuralCost: string; // milliseconds, exact rational string
     executionCost: string; // milliseconds, exact rational string
+    bestCaseDuration?: string; // milliseconds, exact rational string
+    dataDependencyCost?: string; // milliseconds, exact rational string
+    contentionCost?: string; // milliseconds, exact rational string
   }>;
+};
+
+export type FiringSequenceEntry = {
+  actorId: string;
+  firingIndex: number; // 1-based firing index per actor
+  tick: number; // absolute tick in witness execution
+};
+
+export type CumulativeTokenTraceEntry = {
+  channelId: string;
+  // Produced/consumed cumulative token counts indexed by firing count.
+  // Entry 0 is always "0".
+  produced: string[];
+  consumed: string[];
+};
+
+export type FiringTimingArtifact = {
+  actorId: string;
+  firingIndex: number;
+  al: string;
+  au: string;
+  pl: string;
+  pu: string;
+  rl: string;
+  ru: string;
+  es: string;
+  ls: string;
+  ef: string;
+  lf: string;
+  bcif: string;
+  wcif: string;
+};
+
+export type TimingAnalysisArtifact = {
+  feasible: boolean;
+  firingTiming: FiringTimingArtifact[];
 };
 
 export type ExecutionResult = {
@@ -56,6 +98,9 @@ export type ExecutionResult = {
         tokens: string;
       }>;
     }>;
+    firingSequence?: FiringSequenceEntry[];
+    cumulativeTokenTrace?: CumulativeTokenTraceEntry[];
+    timingAnalysis?: TimingAnalysisArtifact;
     detailedTrace?: DetailedTraceStep[];
     worstCasePath?: WorstCasePathArtifact;
   };
@@ -74,6 +119,10 @@ export type PolyGraphModel = {
     period?: number; // milliseconds (optional if freq is provided)
     phase?: string | number; // milliseconds, rational string e.g. "0", "20", "200/3", or number
     executionTime?: string | number; // milliseconds, exact duration used for worst-case path analysis
+    bcet?: string | number; // milliseconds, best-case execution time (defaults to executionTime)
+    jitter?: string | number; // milliseconds, release jitter bound (defaults to 0)
+    priority?: number; // fixed priority for preemptive analysis (higher value = higher priority)
+    processor?: number; // processor/core index (defaults to 0)
     ui?: { x: number; y: number };
   }>;
   channels: Array<{

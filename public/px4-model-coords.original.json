@@ -8,210 +8,127 @@
       "id": "imu",
       "label": "IMU",
       "timed": true,
-      "freq": 400,
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "freq": 400
     },
     {
       "id": "magneto",
       "label": "Magnetometer",
       "timed": true,
-      "freq": 50,
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "freq": 50
     },
     {
       "id": "baro",
       "label": "Barometer",
       "timed": true,
-      "freq": 100,
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "freq": 100
     },
     {
       "id": "adc",
       "label": "ADC",
       "timed": true,
-      "freq": 80,
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "freq": 80
     },
     {
       "id": "vehicle_angular_velocity",
       "label": "Vehicle Angular Velocity",
       "timed": true,
       "freq": 400,
-      "executionTime": "279/500",
-      "bcet": "279/500",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "279/500"
     },
     {
       "id": "sensors",
       "label": "Sensors",
       "timed": true,
       "freq": 200,
-      "executionTime": "47/500",
-      "bcet": "47/500",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "47/500"
     },
     {
       "id": "vehicle_air_data",
       "label": "Vehicle Air Data",
       "timed": true,
       "freq": 80,
-      "executionTime": "1/20",
-      "bcet": "1/20",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "1/20"
     },
     {
       "id": "ekf2",
       "label": "EKF2",
       "timed": true,
       "freq": 200,
-      "executionTime": "79/250",
-      "bcet": "79/250",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "79/250"
     },
     {
       "id": "battery_module",
       "label": "Battery Module",
       "timed": true,
       "freq": 20,
-      "executionTime": "11/500",
-      "bcet": "11/500",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "11/500"
     },
     {
       "id": "commander",
       "label": "Commander",
       "timed": true,
       "freq": 100,
-      "executionTime": "264/250",
-      "bcet": "264/250",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "264/250"
     },
     {
       "id": "navigator",
       "label": "Navigator",
       "timed": true,
       "freq": 20,
-      "executionTime": "361/500",
-      "bcet": "361/500",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "361/500"
     },
     {
       "id": "flight_mode_manager",
       "label": "Flight Mode Manager",
       "timed": true,
       "freq": 50,
-      "executionTime": "159/500",
-      "bcet": "159/500",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "159/500"
     },
     {
       "id": "mc_pos_control",
       "label": "MC Position Control",
       "timed": true,
       "freq": 100,
-      "executionTime": "43/1000",
-      "bcet": "43/1000",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "43/1000"
     },
     {
       "id": "mc_att_control",
       "label": "MC Attitude Control",
       "timed": true,
       "freq": 200,
-      "executionTime": "17/500",
-      "bcet": "17/500",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "17/500"
     },
     {
       "id": "mc_rate_control",
       "label": "MC Rate Control",
       "timed": true,
       "freq": 400,
-      "executionTime": "9/125",
-      "bcet": "9/125",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "9/125"
     },
     {
       "id": "control_allocator",
       "label": "Control Allocator",
       "timed": true,
       "freq": 400,
-      "executionTime": "3/40",
-      "bcet": "3/40",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "3/40"
     },
     {
       "id": "pwm_pca9685",
       "label": "PWM PCA9685",
       "timed": true,
-      "freq": 50,
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "freq": 50
     },
     {
       "id": "esc_motors",
       "label": "ESC Motors",
       "timed": true,
-      "freq": 50,
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "freq": 50
     },
     {
       "id": "servos",
       "label": "Servos",
       "timed": true,
-      "freq": 50,
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "freq": 50
     },
     {
       "id": "a1",
@@ -219,11 +136,7 @@
       "timed": true,
       "freq": 250,
       "phase": "0",
-      "executionTime": "57/1000",
-      "bcet": "57/1000",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "57/1000"
     },
     {
       "id": "a2",
@@ -231,23 +144,14 @@
       "timed": true,
       "freq": 250,
       "phase": "0",
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "executionTime": "0"
     },
     {
       "id": "a3",
       "label": "manual_control",
       "timed": true,
       "freq": 250,
-      "phase": "0",
-      "executionTime": "0",
-      "bcet": "0",
-      "jitter": "0",
-      "priority": 1,
-      "processor": 0
+      "phase": "0"
     }
   ],
   "channels": [

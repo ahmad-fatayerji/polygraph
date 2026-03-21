@@ -62,6 +62,7 @@ export default function TerminalPanel({
     warn: true,
     info: true,
   });
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const filtered = useMemo(
     () => diagnostics.filter((diag) => filters[diag.severity]),
@@ -78,6 +79,40 @@ export default function TerminalPanel({
 
   const toggleFilter = (key: keyof typeof filters) =>
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const formatDiagnostic = (diag: Diagnostic, index: number) => {
+    const title = codeTitles[diag.id] ?? diag.id;
+    const loc = locationLabel(diag.where);
+    const lines = [
+      `#${index + 1} [${diag.id}] ${title}`,
+      `Severity: ${severityLabel[diag.severity]}`,
+      `Message: ${diag.message}`,
+    ];
+    if (loc) lines.push(`Where: ${loc}`);
+    if (diag.hint) lines.push(`Hint: ${diag.hint}`);
+    return lines.join("\n");
+  };
+
+  const handleCopyTerminal = async () => {
+    if (filtered.length === 0) {
+      setCopyState("failed");
+      window.setTimeout(() => setCopyState("idle"), 1800);
+      return;
+    }
+
+    const payload = filtered
+      .map((diag, idx) => formatDiagnostic(diag, idx))
+      .join("\n\n------------------------------\n\n");
+
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+
+    window.setTimeout(() => setCopyState("idle"), 1800);
+  };
 
   const containerStyles =
     variant === "embedded"
@@ -96,6 +131,17 @@ export default function TerminalPanel({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCopyTerminal}
+            className="rounded-full border border-[color:var(--panel-border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted-strong)] transition hover:border-[color:var(--muted)]"
+          >
+            {copyState === "copied"
+              ? "Copied"
+              : copyState === "failed"
+                ? "Copy failed"
+                : "Copy terminal"}
+          </button>
           <button
             type="button"
             onClick={clearDiagnostics}

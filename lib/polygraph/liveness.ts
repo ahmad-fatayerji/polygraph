@@ -1,6 +1,7 @@
 ﻿import type { DetailedTraceStep, Diagnostic, ExecutionResult, PolyGraphModel, VerifyOptions } from "./types";
 import type { Rational } from "./rational";
 import {
+  absRational,
   add,
   compare,
   rationalZero,
@@ -85,6 +86,18 @@ export const checkLiveness = (
   // Schedule & token trace artifacts
   const scheduleMap = new Map<number, string[]>();              // absolute tick → fired actor ids
   const tokenTrace = captureArtifacts ? initTokenTrace(channels) : undefined;
+  const firingSequence = captureArtifacts ? [] as NonNullable<ExecutionResult["artifacts"]>["firingSequence"] : undefined;
+
+  const cumulativeTokenTrace = captureArtifacts
+    ? channels.map((channel) => ({
+        channelId: channel.id,
+        produced: ["0"],
+        consumed: ["0"],
+      }))
+    : undefined;
+  const producedTotals = channels.map(() => ({ ...rationalZero }));
+  const consumedTotals = channels.map(() => ({ ...rationalZero }));
+  const actorFiringIndices = model.actors.map(() => 0);
 
   // Detailed trace — captures state at every fire/tick event
   const detailedTrace: DetailedTraceStep[] = [];
@@ -208,10 +221,33 @@ export const checkLiveness = (
       firingCounts[actorIdx] += 1n;
       totalFirings += 1n;
       if (model.actors[actorIdx].timed) tracking[actorIdx] += 1n;
+      actorFiringIndices[actorIdx] += 1;
 
       // Record firing in schedule at current absolute tick
       if (!scheduleMap.has(zSigma)) scheduleMap.set(zSigma, []);
       scheduleMap.get(zSigma)!.push(model.actors[actorIdx].id);
+
+      if (firingSequence) {
+        firingSequence.push({
+          actorId: model.actors[actorIdx].id,
+          firingIndex: actorFiringIndices[actorIdx],
+          tick: zSigma,
+        });
+      }
+
+      if (cumulativeTokenTrace) {
+        const outgoing = topology.adjacency.outgoing[actorIdx] ?? [];
+        for (const chIdx of outgoing) {
+          producedTotals[chIdx] = add(producedTotals[chIdx], channels[chIdx].rateSrc);
+          cumulativeTokenTrace[chIdx].produced.push(rationalToString(producedTotals[chIdx]));
+        }
+
+        const incoming = topology.adjacency.incoming[actorIdx] ?? [];
+        for (const chIdx of incoming) {
+          consumedTotals[chIdx] = add(consumedTotals[chIdx], absRational(channels[chIdx].rateDst));
+          cumulativeTokenTrace[chIdx].consumed.push(rationalToString(consumedTotals[chIdx]));
+        }
+      }
 
       // Snapshot state after firing
       snapshotState(`fire(v${sub(actorIdx + 1)}, s${sup(prevStateFire)})`);
@@ -308,6 +344,8 @@ export const checkLiveness = (
           : { tickCount: 1, significantTicks: [] },
         schedule,
         tokenTrace,
+        firingSequence,
+        cumulativeTokenTrace,
         detailedTrace,
       }
       : undefined,
