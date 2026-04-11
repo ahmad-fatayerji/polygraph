@@ -355,14 +355,6 @@
       "init": "1"
     },
     {
-      "id": "c_ekf2_battery_module_estimator_status",
-      "src": "ekf2",
-      "dst": "battery_module",
-      "rateSrc": "1",
-      "rateDst": "-10",
-      "init": "9"
-    },
-    {
       "id": "c_ekf2_navigator_vehicle_global_position",
       "src": "ekf2",
       "dst": "navigator",
