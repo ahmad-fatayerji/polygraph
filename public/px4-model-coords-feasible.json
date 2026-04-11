@@ -13,7 +13,8 @@
       "bcet": "0",
       "jitter": "0",
       "priority": 1,
-      "processor": 0
+      "processor": 0,
+      "phase": "0"
     },
     {
       "id": "magneto",
@@ -24,7 +25,8 @@
       "bcet": "0",
       "jitter": "0",
       "priority": 1,
-      "processor": 0
+      "processor": 0,
+      "phase": "0"
     },
     {
       "id": "baro",
@@ -35,7 +37,8 @@
       "bcet": "0",
       "jitter": "0",
       "priority": 1,
-      "processor": 0
+      "processor": 0,
+      "phase": "0"
     },
     {
       "id": "adc",
@@ -46,7 +49,8 @@
       "bcet": "0",
       "jitter": "0",
       "priority": 1,
-      "processor": 0
+      "processor": 0,
+      "phase": "0"
     },
     {
       "id": "vehicle_angular_velocity",
@@ -82,7 +86,7 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "1/10"
+      "phase": "1/5"
     },
     {
       "id": "ekf2",
@@ -94,7 +98,7 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "3"
+      "phase": "16/5"
     },
     {
       "id": "battery_module",
@@ -118,7 +122,7 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "7/2"
+      "phase": "18/5"
     },
     {
       "id": "navigator",
@@ -166,7 +170,7 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "7/2"
+      "phase": "18/5"
     },
     {
       "id": "mc_rate_control",
@@ -190,7 +194,7 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "17/10"
+      "phase": "9/5"
     },
     {
       "id": "pwm_pca9685",
@@ -245,7 +249,7 @@
       "label": "rc_update",
       "timed": true,
       "freq": 250,
-      "phase": "1/10",
+      "phase": "1/5",
       "executionTime": "0",
       "bcet": "0",
       "jitter": "0",
@@ -257,7 +261,7 @@
       "label": "manual_control",
       "timed": true,
       "freq": 250,
-      "phase": "1/10",
+      "phase": "1/5",
       "executionTime": "0",
       "bcet": "0",
       "jitter": "0",
@@ -299,28 +303,12 @@
       "init": "4"
     },
     {
-      "id": "c_adc_vehicle_air_data",
-      "src": "adc",
-      "dst": "vehicle_air_data",
-      "rateSrc": "1",
-      "rateDst": "-1",
-      "init": "0"
-    },
-    {
       "id": "c_adc_battery_module",
       "src": "adc",
       "dst": "battery_module",
       "rateSrc": "1",
       "rateDst": "-4",
       "init": "3"
-    },
-    {
-      "id": "c_vehicle_angular_velocity_ekf2",
-      "src": "vehicle_angular_velocity",
-      "dst": "ekf2",
-      "rateSrc": "1",
-      "rateDst": "-2",
-      "init": "1"
     },
     {
       "id": "c_vehicle_angular_velocity_mc_rate_control",
@@ -337,6 +325,14 @@
       "rateSrc": "1",
       "rateDst": "-1",
       "init": "0"
+    },
+    {
+      "id": "c_ekf2_sensors",
+      "src": "ekf2",
+      "dst": "sensors",
+      "rateSrc": "1",
+      "rateDst": "-1",
+      "init": "1"
     },
     {
       "id": "c_vehicle_air_data_ekf2",
@@ -425,14 +421,6 @@
       "rateSrc": "1",
       "rateDst": "-2",
       "init": "1"
-    },
-    {
-      "id": "c_commander_battery_module",
-      "src": "commander",
-      "dst": "battery_module",
-      "rateSrc": "1",
-      "rateDst": "-5",
-      "init": "5"
     },
     {
       "id": "c_navigator_flight_mode_manager",
@@ -561,6 +549,14 @@
       "rateSrc": "1",
       "rateDst": "-5/4",
       "init": "1"
+    },
+    {
+      "id": "c7",
+      "src": "adc",
+      "dst": "sensors",
+      "rateSrc": "5/2",
+      "rateDst": "1",
+      "init": "2"
     }
   ],
   "layout": {
@@ -570,32 +566,32 @@
         "y": 547.623054998325
       },
       "magneto": {
-        "x": -389.29739223823515,
-        "y": 441.7637172724345
+        "x": -447.50661380628105,
+        "y": 433.4481141912851
       },
       "baro": {
-        "x": -398.90724381080304,
-        "y": 311.3345400753721
+        "x": -438.72241831100297,
+        "y": 310.6106278117321
       },
       "adc": {
-        "x": -401.47455827249877,
-        "y": 193.93367894540262
+        "x": -417.3713993942368,
+        "y": 47.63729466973933
       },
       "vehicle_angular_velocity": {
         "x": -147.07818948153084,
         "y": 819.7059413163959
       },
       "sensors": {
-        "x": -126.91962085636382,
-        "y": 570.6441224140358
+        "x": -149.96893142630373,
+        "y": 557.0240752590713
       },
       "vehicle_air_data": {
         "x": -151.32847865935986,
         "y": 383.2305394232656
       },
       "ekf2": {
-        "x": 127.76805180480977,
-        "y": 477.65158728140614
+        "x": 155.00814611473876,
+        "y": 378.12047345666554
       },
       "battery_module": {
         "x": 317.6307489653666,
