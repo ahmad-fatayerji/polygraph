@@ -29,6 +29,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import type { PolyGraphModel } from "@/lib/polygraph/types";
+import { parseRational } from "@/lib/polygraph/rational";
 import { usePolygraphStore } from "../store";
 import { defaultPosition, type ActorPosition } from "../graphLayout";
 
@@ -163,6 +164,31 @@ const cloneValue = <T,>(value: T): T => {
     return structuredClone(value);
   }
   return JSON.parse(JSON.stringify(value)) as T;
+};
+
+const formatTimingValue = (value: string | number | undefined) => {
+  if (value == null) return "";
+
+  const raw = String(value).trim();
+  if (raw.length === 0) return "";
+
+  const parsed = parseRational(raw);
+  if (!parsed.ok) return raw;
+
+  const { n, d } = parsed.value;
+  if (d === 1n) return n.toString();
+
+  const negative = n < 0n;
+  const absNumerator = negative ? -n : n;
+  let scaled = (absNumerator * 100n) / d;
+  const remainder = (absNumerator * 100n) % d;
+  if (remainder * 10n >= d * 5n) {
+    scaled += 1n;
+  }
+
+  const whole = scaled / 100n;
+  const fraction = (scaled % 100n).toString().padStart(2, "0");
+  return `${negative ? "-" : ""}${whole.toString()}.${fraction}`;
 };
 
 type ContextMenuState =
@@ -319,12 +345,12 @@ function VisualEditorInner() {
               {actor.executionTime != null &&
               String(actor.executionTime).trim() !== "" ? (
                 <span className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--muted-strong)]">
-                  WCET {String(actor.executionTime)} ms
+                  WCET {formatTimingValue(actor.executionTime)} ms
                 </span>
               ) : null}
               {actor.timed && actor.phase != null && String(actor.phase) !== "0" && String(actor.phase) !== "" && (
                 <span className="text-[10px] tracking-[0.08em]" style={{ color: "#c0392b" }}>
-                  +{String(actor.phase)} ms
+                  +{formatTimingValue(actor.phase)} ms
                 </span>
               )}
             </div>
