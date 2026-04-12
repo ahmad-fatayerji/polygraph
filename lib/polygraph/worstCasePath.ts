@@ -333,6 +333,13 @@ const buildLegacyWorstPathArtifact = (
     .sort((left, right) => {
       const durationCmp = compare(right.duration, left.duration);
       if (durationCmp !== 0) return durationCmp;
+
+      const executionCmp = compare(right.executionCost, left.executionCost);
+      if (executionCmp !== 0) return executionCmp;
+
+      const structuralCmp = compare(right.structuralCost, left.structuralCost);
+      if (structuralCmp !== 0) return structuralCmp;
+
       return right.path.length - left.path.length;
     });
 
@@ -896,8 +903,12 @@ const computePathBound = (
     const contentionCost = chain.reduce((acc, job) => add(acc, job.wcif), zero());
     const duration = sub(sink.lf, source.es);
     const bestCaseDuration = sub(sink.ef, source.es);
+    // `sink.ls` already incorporates predecessor interference through propagated
+    // latest-finish bounds, so subtracting execution time yields a structural
+    // component that already includes contention. Adding contention again
+    // would double-count it and can make structural + execution exceed duration.
     const dataDependencyCost = sub(sub(sink.ls, source.es), executionCost);
-    const structuralCost = add(dataDependencyCost, contentionCost);
+    const structuralCost = dataDependencyCost;
 
     if (worst === null || compare(duration, worst.duration) > 0) {
       worst = {
@@ -957,6 +968,13 @@ const buildWorstPathArtifact = (
     .sort((left, right) => {
       const durationCmp = compare(right.duration, left.duration);
       if (durationCmp !== 0) return durationCmp;
+
+      const executionCmp = compare(right.executionCost, left.executionCost);
+      if (executionCmp !== 0) return executionCmp;
+
+      const structuralCmp = compare(right.structuralCost, left.structuralCost);
+      if (structuralCmp !== 0) return structuralCmp;
+
       return right.path.length - left.path.length;
     });
 
