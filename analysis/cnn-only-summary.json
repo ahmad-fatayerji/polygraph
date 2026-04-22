@@ -1,0 +1,33 @@
+{
+  "inputModel": "public\\px4-model-coords-camera-ai-lowfreq.json",
+  "actorId": "a2",
+  "inChannelId": "c1",
+  "outChannelId": "c2",
+  "frozenActorCount": 20,
+  "search": {
+    "freqMin": 0,
+    "freqMax": 800,
+    "freqStep": 50,
+    "wcetMin": 0,
+    "wcetMax": 5,
+    "wcetStep": 0.5,
+    "phaseStepMs": "1/10",
+    "maxPhaseCandidates": 20,
+    "phaseMode": "first",
+    "initSlackQuanta": 0,
+    "maxC2InitExtraQuanta": 5,
+    "criterion": "no-error"
+  },
+  "totals": {
+    "testedPairs": 187,
+    "feasiblePairs": 94,
+    "infeasiblePairs": 93,
+    "feasiblePhaseRows": 94
+  },
+  "outputs": {
+    "feasibleCsv": "analysis\\cnn-only-feasible.csv",
+    "gridCsv": "analysis\\cnn-only-grid.csv",
+    "xyzCsv": "analysis\\cnn-only-xyz-critical-path-cnn.csv",
+    "summaryJson": "analysis\\cnn-only-summary.json"
+  }
+}
