@@ -22,6 +22,8 @@ import { verify } from "../lib/polygraph/verify";
 
 type PhaseMode = "first" | "all";
 type SchedCriterion = "strict-ok" | "no-error";
+type SweepMode = "grid" | "frontier";
+type FrontierAxis = "wcet-vs-freq" | "freq-vs-wcet";
 
 type SweepConfig = {
   modelPath: string;
@@ -42,6 +44,11 @@ type SweepConfig = {
   initSlackQuanta: number;
   maxC2InitExtraQuanta: number;
   criterion: SchedCriterion;
+  sweepMode: SweepMode;
+  monotonicEarlyExit: boolean;
+  frontierAxis: FrontierAxis;
+  frontierTolerance: number;
+  frontierMaxIters: number;
 };
 
 type FeasibleRow = {
@@ -74,6 +81,48 @@ type XyzRow = {
   freqHz: string;
   wcetMs: string;
   criticalPathThroughCnnMs: string;
+};
+
+type FrontierRow = {
+  anchorAxis: string;
+  anchorValue: string;
+  maxFeasibleValue: string;
+  minInfeasibleValue: string;
+  iterations: string;
+  selectedPhaseMs: string;
+  c1RateDst: string;
+  c1Init: string;
+  c2RateSrc: string;
+  c2Init: string;
+  selectedCriticalPathThroughCnnMs: string;
+  status: string;
+};
+
+type PairEvalContext = {
+  baseModel: PolyGraphModel;
+  baseActor: PolyGraphModel["actors"][number];
+  baseInChannel: PolyGraphModel["channels"][number];
+  baseOutChannel: PolyGraphModel["channels"][number];
+  basePhaseMs: Rational;
+  baseC1Init: Rational;
+  baseC2Init: Rational;
+  constants: ChannelRetuneConstants;
+  actorIndex: Map<string, number>;
+};
+
+type PairEvalResult = {
+  feasible: boolean;
+  freq: number;
+  wcet: number;
+  wcetRational: Rational;
+  selectedPhaseMs: string;
+  selectedC1Init: string;
+  selectedC2Init: string;
+  selectedCriticalPathThroughCnnMs: string;
+  c1RateDstText: string;
+  c2RateSrcText: string;
+  firstErrorId: string;
+  feasibleRowsForPair: FeasibleRow[];
 };
 
 type ChannelRetuneConstants = {
@@ -121,6 +170,14 @@ Options:
   --init-slack-quanta N       Extra init quanta added on c1/c2 after min init (default: 0)
   --max-c2-init-extra-quanta N  Extra quanta explored for c2 init above minimum (default: 60)
   --criterion MODE            strict-ok | no-error (default: no-error)
+
+  --sweep-mode MODE           grid | frontier (default: grid)
+  --monotonic-early-exit B    In grid mode, stop WCET scan after first infeasible per freq (default: true)
+  --frontier-axis AXIS        wcet-vs-freq | freq-vs-wcet (default: wcet-vs-freq)
+                              wcet-vs-freq  => for each freq, find max feasible WCET by bisection
+                              freq-vs-wcet  => for each wcet, find max feasible freq by bisection
+  --frontier-tolerance N      Bisection tolerance on the swept axis (default: 0.01)
+  --frontier-max-iters N      Max bisection iterations per anchor point (default: 40)
   --help                      Show this help
 
 Notes:
@@ -263,6 +320,19 @@ const parseArgs = (argv: string[]): SweepConfig => {
     fail(`Invalid --criterion: ${criterionRaw}. Use strict-ok or no-error.`);
   }
 
+  const sweepModeRaw = (argMap.get("sweep-mode") ?? "grid") as SweepMode;
+  if (sweepModeRaw !== "grid" && sweepModeRaw !== "frontier") {
+    fail(`Invalid --sweep-mode: ${sweepModeRaw}. Use grid or frontier.`);
+  }
+
+  const frontierAxisRaw = (argMap.get("frontier-axis") ?? "wcet-vs-freq") as FrontierAxis;
+  if (frontierAxisRaw !== "wcet-vs-freq" && frontierAxisRaw !== "freq-vs-wcet") {
+    fail(`Invalid --frontier-axis: ${frontierAxisRaw}. Use wcet-vs-freq or freq-vs-wcet.`);
+  }
+
+  const monotonicEarlyExitRaw = (argMap.get("monotonic-early-exit") ?? "true").toLowerCase();
+  const monotonicEarlyExit = monotonicEarlyExitRaw !== "false" && monotonicEarlyExitRaw !== "0";
+
   const phaseStepText = argMap.get("phase-step-ms") ?? "1/10";
 
   return {
@@ -290,6 +360,17 @@ const parseArgs = (argv: string[]): SweepConfig => {
       "--max-c2-init-extra-quanta"
     ),
     criterion: criterionRaw,
+    sweepMode: sweepModeRaw,
+    monotonicEarlyExit,
+    frontierAxis: frontierAxisRaw,
+    frontierTolerance: parsePositiveNumber(
+      argMap.get("frontier-tolerance") ?? "0.01",
+      "--frontier-tolerance"
+    ),
+    frontierMaxIters: parseIntArg(
+      argMap.get("frontier-max-iters") ?? "40",
+      "--frontier-max-iters"
+    ),
   };
 };
 
@@ -879,6 +960,455 @@ const retuneInitsForCandidate = (
   return { c1Init, c2Init };
 };
 
+const evaluatePair = (
+  config: SweepConfig,
+  ctx: PairEvalContext,
+  freq: number,
+  wcet: number
+): PairEvalResult => {
+  const wcetRational = parseNumberToRational(wcet);
+  if (wcetRational === null) {
+    throw new Error(`Cannot parse WCET value: ${wcet}`);
+  }
+
+  if (freq <= 0) {
+    return {
+      feasible: false,
+      freq,
+      wcet,
+      wcetRational,
+      selectedPhaseMs: "",
+      selectedC1Init: "",
+      selectedC2Init: "",
+      selectedCriticalPathThroughCnnMs: "",
+      c1RateDstText: "",
+      c2RateSrcText: "",
+      firstErrorId: "E_TOPOLOGY_INVALID",
+      feasibleRowsForPair: [],
+    };
+  }
+
+  const pairModel = cloneModel(ctx.baseModel);
+  const pairActorMaybe = pairModel.actors.find((entry) => entry.id === config.actorId);
+  if (!pairActorMaybe) {
+    throw new Error(`Actor not found in candidate model: ${config.actorId}`);
+  }
+  const pairActor = pairActorMaybe;
+
+  pairActor.freq = freq;
+  delete pairActor.period;
+  pairActor.executionTime = rationalToString(wcetRational);
+
+  const tunedRates = retuneRatesForPair(
+    pairModel,
+    config.actorId,
+    config.inChannelId,
+    config.outChannelId,
+    ctx.constants
+  );
+
+  const pairPeriodMs = getActorPeriodMs(pairActor);
+  const phaseCandidates = buildPhaseCandidates(
+    pairPeriodMs,
+    ctx.basePhaseMs,
+    config.phaseStepMs,
+    config.maxPhaseCandidates
+  );
+
+  let foundAny = false;
+  let firstErrorId = "";
+  let selectedPhaseMs = "";
+  let selectedC1Init = "";
+  let selectedC2Init = "";
+  let selectedCriticalPathThroughCnnMs = "";
+  const feasibleRowsForPair: FeasibleRow[] = [];
+
+  for (const phaseMs of phaseCandidates) {
+    const candidate = cloneModel(pairModel);
+    const candidateActorMaybe = candidate.actors.find((entry) => entry.id === config.actorId);
+    if (!candidateActorMaybe) {
+      throw new Error(`Actor not found in phase candidate: ${config.actorId}`);
+    }
+    const candidateActor = candidateActorMaybe;
+
+    candidateActor.phase = rationalToString(phaseMs);
+
+    const tunedInits = retuneInitsForCandidate(
+      candidate,
+      config.inChannelId,
+      config.outChannelId,
+      ctx.actorIndex,
+      config.initSlackQuanta
+    );
+
+    const c1ChannelMaybe = candidate.channels.find(
+      (entry) => entry.id === config.inChannelId
+    );
+    const c2ChannelMaybe = candidate.channels.find(
+      (entry) => entry.id === config.outChannelId
+    );
+    if (!c1ChannelMaybe || !c2ChannelMaybe) {
+      throw new Error("Candidate channels missing during init-search.");
+    }
+    const c1Channel = c1ChannelMaybe;
+    const c2Channel = c2ChannelMaybe;
+
+    const c1Quantum = channelInitQuantum(c1Channel);
+    const c2Quantum = channelInitQuantum(c2Channel);
+    const c1InitCandidates = buildInitCandidates(
+      tunedInits.c1Init,
+      ctx.baseC1Init,
+      c1Quantum,
+      0
+    );
+    const c2InitCandidates = buildInitCandidates(
+      tunedInits.c2Init,
+      ctx.baseC2Init,
+      c2Quantum,
+      config.maxC2InitExtraQuanta
+    );
+
+    let phaseAccepted = false;
+
+    for (const c1Init of c1InitCandidates) {
+      for (const c2Init of c2InitCandidates) {
+        c1Channel.init = rationalToString(c1Init);
+        c2Channel.init = rationalToString(c2Init);
+
+        const result = verify(candidate, {
+          computeExecution: true,
+          cycles: 1,
+          captureDetailedTrace: false,
+        });
+
+        if (isSchedulable(result, config.criterion)) {
+          foundAny = true;
+          phaseAccepted = true;
+          const tickCount = result.artifacts?.hyperperiod?.tickCount;
+          const worstPath = result.artifacts?.worstCasePath?.duration;
+          const criticalPathThroughCnnMs = computeCriticalPathThroughActorMs(
+            candidate,
+            result,
+            config.actorId
+          );
+
+          const row: FeasibleRow = {
+            freqHz: freq.toString(),
+            wcetMs: rationalToString(wcetRational),
+            phaseMs: rationalToString(phaseMs),
+            c1RateDst: rationalToString(tunedRates.c1RateDst),
+            c1Init: rationalToString(c1Init),
+            c2RateSrc: rationalToString(tunedRates.c2RateSrc),
+            c2Init: rationalToString(c2Init),
+            tickCount: tickCount !== undefined ? tickCount.toString() : "",
+            worstCasePathMs: worstPath ?? "",
+            criticalPathThroughCnnMs,
+          };
+
+          feasibleRowsForPair.push(row);
+
+          if (selectedPhaseMs.length === 0) {
+            selectedPhaseMs = row.phaseMs;
+            selectedC1Init = row.c1Init;
+            selectedC2Init = row.c2Init;
+            selectedCriticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
+          }
+
+          break;
+        }
+
+        if (firstErrorId.length === 0) {
+          const firstError = result.diagnostics.find(
+            (diag) => diag.severity === "error"
+          )?.id;
+          firstErrorId =
+            firstError ??
+            (config.criterion === "strict-ok" ? "NOT_STRICT_OK" : "UNKNOWN");
+        }
+      }
+
+      if (phaseAccepted) break;
+    }
+
+    if (phaseAccepted && config.phaseMode === "first") break;
+  }
+
+  return {
+    feasible: foundAny,
+    freq,
+    wcet,
+    wcetRational,
+    selectedPhaseMs,
+    selectedC1Init,
+    selectedC2Init,
+    selectedCriticalPathThroughCnnMs,
+    c1RateDstText: rationalToString(tunedRates.c1RateDst),
+    c2RateSrcText: rationalToString(tunedRates.c2RateSrc),
+    firstErrorId,
+    feasibleRowsForPair,
+  };
+};
+
+const aggregateXyz = (feasibleRows: FeasibleRow[]): XyzRow[] => {
+  const best = new Map<string, XyzRow>();
+  for (const row of feasibleRows) {
+    const key = `${row.freqHz}\0${row.wcetMs}`;
+    const existing = best.get(key);
+    if (!existing) {
+      best.set(key, {
+        freqHz: row.freqHz,
+        wcetMs: row.wcetMs,
+        criticalPathThroughCnnMs: row.criticalPathThroughCnnMs,
+      });
+      continue;
+    }
+    const a = parseRationalSafe(existing.criticalPathThroughCnnMs);
+    const b = parseRationalSafe(row.criticalPathThroughCnnMs);
+    if (a && b && compare(b, a) > 0) {
+      existing.criticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
+    } else if (!a && b) {
+      existing.criticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
+    }
+  }
+  return [...best.values()].sort((l, r) => {
+    const fl = Number(l.freqHz);
+    const fr = Number(r.freqHz);
+    if (fl !== fr) return fl - fr;
+    return Number(l.wcetMs) - Number(r.wcetMs);
+  });
+};
+
+const runGridSweep = (
+  config: SweepConfig,
+  ctx: PairEvalContext,
+  freqGrid: number[],
+  wcetGrid: number[]
+) => {
+  const feasibleRows: FeasibleRow[] = [];
+  const gridRows: GridRow[] = [];
+  const totalPairs = freqGrid.length * wcetGrid.length;
+  let evaluated = 0;
+  let skipped = 0;
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `Grid sweep: ${freqGrid.length} frequencies x ${wcetGrid.length} WCETs = ${totalPairs} pairs.` +
+      (config.monotonicEarlyExit ? " (monotonic early-exit on)" : "")
+  );
+
+  const sortedWcet = [...wcetGrid].sort((a, b) => a - b);
+
+  for (const freq of freqGrid) {
+    let lockedInfeasible = false;
+    let infeasibleCarry: { firstErrorId: string; c1RateDstText: string; c2RateSrcText: string } | null =
+      null;
+
+    for (const wcet of sortedWcet) {
+      evaluated += 1;
+
+      if (lockedInfeasible && config.monotonicEarlyExit) {
+        const wcetRational = parseNumberToRational(wcet);
+        if (wcetRational === null) {
+          throw new Error(`Cannot parse WCET value: ${wcet}`);
+        }
+        gridRows.push({
+          freqHz: freq.toString(),
+          wcetMs: rationalToString(wcetRational),
+          feasible: "no",
+          selectedPhaseMs: "",
+          c1RateDst: infeasibleCarry?.c1RateDstText ?? "",
+          c1Init: "",
+          c2RateSrc: infeasibleCarry?.c2RateSrcText ?? "",
+          c2Init: "",
+          selectedCriticalPathThroughCnnMs: "",
+          firstErrorId: infeasibleCarry?.firstErrorId
+            ? `${infeasibleCarry.firstErrorId} (skipped: WCET monotonicity)`
+            : "SKIPPED_MONOTONIC",
+        });
+        skipped += 1;
+        continue;
+      }
+
+      const result = evaluatePair(config, ctx, freq, wcet);
+
+      if (result.feasible) {
+        for (const row of result.feasibleRowsForPair) {
+          feasibleRows.push(row);
+        }
+      } else if (config.monotonicEarlyExit) {
+        lockedInfeasible = true;
+        infeasibleCarry = {
+          firstErrorId: result.firstErrorId,
+          c1RateDstText: result.c1RateDstText,
+          c2RateSrcText: result.c2RateSrcText,
+        };
+      }
+
+      gridRows.push({
+        freqHz: freq.toString(),
+        wcetMs: rationalToString(result.wcetRational),
+        feasible: result.feasible ? "yes" : "no",
+        selectedPhaseMs: result.selectedPhaseMs,
+        c1RateDst: result.c1RateDstText,
+        c1Init: result.selectedC1Init,
+        c2RateSrc: result.c2RateSrcText,
+        c2Init: result.selectedC2Init,
+        selectedCriticalPathThroughCnnMs: result.selectedCriticalPathThroughCnnMs,
+        firstErrorId: result.feasible ? "" : result.firstErrorId,
+      });
+
+      if (evaluated % 20 === 0 || evaluated === totalPairs) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `Progress: ${evaluated}/${totalPairs} pairs (skipped: ${skipped}).`
+        );
+      }
+    }
+  }
+
+  return { feasibleRows, gridRows, totalPairs, skipped };
+};
+
+const bisectFrontier = (
+  config: SweepConfig,
+  ctx: PairEvalContext,
+  isFeasibleAt: (value: number) => PairEvalResult,
+  loInclusive: number,
+  hiExclusive: number
+): { iters: number; lastFeasible: PairEvalResult | null; firstInfeasible: PairEvalResult | null } => {
+  let lo = loInclusive;
+  let hi = hiExclusive;
+  let lastFeasible: PairEvalResult | null = null;
+  let firstInfeasible: PairEvalResult | null = null;
+  let iters = 0;
+
+  const loEval = isFeasibleAt(lo);
+  if (!loEval.feasible) {
+    return { iters: 1, lastFeasible: null, firstInfeasible: loEval };
+  }
+  lastFeasible = loEval;
+
+  const hiEval = isFeasibleAt(hi);
+  iters = 2;
+  if (hiEval.feasible) {
+    return { iters, lastFeasible: hiEval, firstInfeasible: null };
+  }
+  firstInfeasible = hiEval;
+
+  while (hi - lo > config.frontierTolerance && iters < config.frontierMaxIters) {
+    const mid = (lo + hi) / 2;
+    const midEval = isFeasibleAt(mid);
+    iters += 1;
+    if (midEval.feasible) {
+      lo = mid;
+      lastFeasible = midEval;
+    } else {
+      hi = mid;
+      firstInfeasible = midEval;
+    }
+  }
+
+  // suppress unused parameter warning when ctx is not directly needed in this scope
+  void ctx;
+  return { iters, lastFeasible, firstInfeasible };
+};
+
+const runFrontierSweep = (
+  config: SweepConfig,
+  ctx: PairEvalContext,
+  freqGrid: number[],
+  wcetGrid: number[]
+) => {
+  const feasibleRows: FeasibleRow[] = [];
+  const frontierRows: FrontierRow[] = [];
+
+  const anchorAxisLabel =
+    config.frontierAxis === "wcet-vs-freq" ? "freqHz" : "wcetMs";
+  const anchors = config.frontierAxis === "wcet-vs-freq" ? freqGrid : wcetGrid;
+  const sweptLo =
+    config.frontierAxis === "wcet-vs-freq" ? config.wcetMin : config.freqMin;
+  const sweptHi =
+    config.frontierAxis === "wcet-vs-freq" ? config.wcetMax : config.freqMax;
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `Frontier sweep (${config.frontierAxis}): ${anchors.length} anchors, ` +
+      `swept axis [${sweptLo}, ${sweptHi}], tolerance=${config.frontierTolerance}.`
+  );
+
+  let counter = 0;
+  for (const anchor of anchors) {
+    counter += 1;
+
+    const anchorIsFreq = config.frontierAxis === "wcet-vs-freq";
+    const isFeasibleAt = (value: number): PairEvalResult => {
+      const freq = anchorIsFreq ? anchor : value;
+      const wcet = anchorIsFreq ? value : anchor;
+      const result = evaluatePair(config, ctx, freq, wcet);
+      if (result.feasible) {
+        for (const row of result.feasibleRowsForPair) {
+          feasibleRows.push(row);
+        }
+      }
+      return result;
+    };
+
+    const { iters, lastFeasible, firstInfeasible } = bisectFrontier(
+      config,
+      ctx,
+      isFeasibleAt,
+      sweptLo,
+      sweptHi
+    );
+
+    const anchorRational = anchorIsFreq
+      ? anchor.toString()
+      : (() => {
+          const r = parseNumberToRational(anchor);
+          if (r === null) throw new Error(`Bad anchor value ${anchor}`);
+          return rationalToString(r);
+        })();
+
+    const status = lastFeasible
+      ? firstInfeasible
+        ? "frontier-found"
+        : "all-feasible-up-to-hi"
+      : "all-infeasible";
+
+    frontierRows.push({
+      anchorAxis: anchorAxisLabel,
+      anchorValue: anchorRational,
+      maxFeasibleValue: lastFeasible
+        ? anchorIsFreq
+          ? rationalToString(lastFeasible.wcetRational)
+          : lastFeasible.freq.toString()
+        : "",
+      minInfeasibleValue: firstInfeasible
+        ? anchorIsFreq
+          ? rationalToString(firstInfeasible.wcetRational)
+          : firstInfeasible.freq.toString()
+        : "",
+      iterations: iters.toString(),
+      selectedPhaseMs: lastFeasible?.selectedPhaseMs ?? "",
+      c1RateDst: lastFeasible?.c1RateDstText ?? "",
+      c1Init: lastFeasible?.selectedC1Init ?? "",
+      c2RateSrc: lastFeasible?.c2RateSrcText ?? "",
+      c2Init: lastFeasible?.selectedC2Init ?? "",
+      selectedCriticalPathThroughCnnMs:
+        lastFeasible?.selectedCriticalPathThroughCnnMs ?? "",
+      status,
+    });
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `Anchor ${counter}/${anchors.length} (${anchorAxisLabel}=${anchorRational}): ` +
+        `${status} in ${iters} iters.`
+    );
+  }
+
+  return { feasibleRows, frontierRows };
+};
+
 const run = () => {
   const config = parseArgs(process.argv.slice(2));
 
@@ -932,225 +1462,37 @@ const run = () => {
   };
 
   const actorIndex = new Map(baseModel.actors.map((actor, idx) => [actor.id, idx]));
-  const basePhaseMs = parseDurationMs(baseActor.phase);
-  const baseC1Init = parseDurationMs(baseInChannel.init);
-  const baseC2Init = parseDurationMs(baseOutChannel.init);
+  const ctx: PairEvalContext = {
+    baseModel,
+    baseActor,
+    baseInChannel,
+    baseOutChannel,
+    basePhaseMs: parseDurationMs(baseActor.phase),
+    baseC1Init: parseDurationMs(baseInChannel.init),
+    baseC2Init: parseDurationMs(baseOutChannel.init),
+    constants,
+    actorIndex,
+  };
 
-  const feasibleRows: FeasibleRow[] = [];
-  const gridRows: GridRow[] = [];
-  const xyzRows: XyzRow[] = [];
+  let feasibleRows: FeasibleRow[] = [];
+  let gridRows: GridRow[] = [];
+  let frontierRows: FrontierRow[] = [];
+  let totalPairs = 0;
+  let skipped = 0;
 
-  const totalPairs = freqGrid.length * wcetGrid.length;
-  let pairCounter = 0;
-
-  // eslint-disable-next-line no-console
-  console.log(
-    `Sweep started: ${freqGrid.length} frequencies x ${wcetGrid.length} WCETs = ${totalPairs} pairs.`
-  );
-
-  for (const freq of freqGrid) {
-    for (const wcet of wcetGrid) {
-      pairCounter += 1;
-
-      const wcetRational = parseNumberToRational(wcet);
-      if (wcetRational === null) {
-        throw new Error(`Cannot parse WCET value: ${wcet}`);
-      }
-
-      if (freq === 0) {
-        gridRows.push({
-          freqHz: freq.toString(),
-          wcetMs: rationalToString(wcetRational),
-          feasible: "no",
-          selectedPhaseMs: "",
-          c1RateDst: "",
-          c1Init: "",
-          c2RateSrc: "",
-          c2Init: "",
-          selectedCriticalPathThroughCnnMs: "",
-          firstErrorId: "E_TOPOLOGY_INVALID",
-        });
-
-        if (pairCounter % 20 === 0 || pairCounter === totalPairs) {
-          // eslint-disable-next-line no-console
-          console.log(`Progress: ${pairCounter}/${totalPairs} pairs evaluated.`);
-        }
-
-        continue;
-      }
-
-      const pairModel = cloneModel(baseModel);
-      const pairActorMaybe = pairModel.actors.find((entry) => entry.id === config.actorId);
-      if (!pairActorMaybe) {
-        throw new Error(`Actor not found in candidate model: ${config.actorId}`);
-      }
-      const pairActor = pairActorMaybe;
-
-      pairActor.freq = freq;
-      delete pairActor.period;
-      pairActor.executionTime = rationalToString(wcetRational);
-
-      const tunedRates = retuneRatesForPair(
-        pairModel,
-        config.actorId,
-        config.inChannelId,
-        config.outChannelId,
-        constants
-      );
-
-      const pairPeriodMs = getActorPeriodMs(pairActor);
-      const phaseCandidates = buildPhaseCandidates(
-        pairPeriodMs,
-        basePhaseMs,
-        config.phaseStepMs,
-        config.maxPhaseCandidates
-      );
-
-      let foundAny = false;
-      let firstErrorId = "";
-      let selectedPhaseMs = "";
-      let selectedC1Init = "";
-      let selectedC2Init = "";
-      let selectedCriticalPathThroughCnnMs = "";
-
-      for (const phaseMs of phaseCandidates) {
-        const candidate = cloneModel(pairModel);
-        const candidateActorMaybe = candidate.actors.find((entry) => entry.id === config.actorId);
-        if (!candidateActorMaybe) {
-          throw new Error(`Actor not found in phase candidate: ${config.actorId}`);
-        }
-        const candidateActor = candidateActorMaybe;
-
-        candidateActor.phase = rationalToString(phaseMs);
-
-        const tunedInits = retuneInitsForCandidate(
-          candidate,
-          config.inChannelId,
-          config.outChannelId,
-          actorIndex,
-          config.initSlackQuanta
-        );
-
-        const c1ChannelMaybe = candidate.channels.find(
-          (entry) => entry.id === config.inChannelId
-        );
-        const c2ChannelMaybe = candidate.channels.find(
-          (entry) => entry.id === config.outChannelId
-        );
-        if (!c1ChannelMaybe || !c2ChannelMaybe) {
-          throw new Error("Candidate channels missing during init-search.");
-        }
-        const c1Channel = c1ChannelMaybe;
-        const c2Channel = c2ChannelMaybe;
-
-        const c1Quantum = channelInitQuantum(c1Channel);
-        const c2Quantum = channelInitQuantum(c2Channel);
-        const c1InitCandidates = buildInitCandidates(
-          tunedInits.c1Init,
-          baseC1Init,
-          c1Quantum,
-          0
-        );
-        const c2InitCandidates = buildInitCandidates(
-          tunedInits.c2Init,
-          baseC2Init,
-          c2Quantum,
-          config.maxC2InitExtraQuanta
-        );
-
-        let phaseAccepted = false;
-
-        for (const c1Init of c1InitCandidates) {
-          for (const c2Init of c2InitCandidates) {
-            c1Channel.init = rationalToString(c1Init);
-            c2Channel.init = rationalToString(c2Init);
-
-            const result = verify(candidate, {
-              computeExecution: true,
-              cycles: 1,
-              captureDetailedTrace: false,
-            });
-
-            if (isSchedulable(result, config.criterion)) {
-              foundAny = true;
-              phaseAccepted = true;
-              const tickCount = result.artifacts?.hyperperiod?.tickCount;
-              const worstPath = result.artifacts?.worstCasePath?.duration;
-              const criticalPathThroughCnnMs = computeCriticalPathThroughActorMs(
-                candidate,
-                result,
-                config.actorId
-              );
-
-              const row: FeasibleRow = {
-                freqHz: freq.toString(),
-                wcetMs: rationalToString(wcetRational),
-                phaseMs: rationalToString(phaseMs),
-                c1RateDst: rationalToString(tunedRates.c1RateDst),
-                c1Init: rationalToString(c1Init),
-                c2RateSrc: rationalToString(tunedRates.c2RateSrc),
-                c2Init: rationalToString(c2Init),
-                tickCount: tickCount !== undefined ? tickCount.toString() : "",
-                worstCasePathMs: worstPath ?? "",
-                criticalPathThroughCnnMs,
-              };
-
-              feasibleRows.push(row);
-              xyzRows.push({
-                freqHz: row.freqHz,
-                wcetMs: row.wcetMs,
-                criticalPathThroughCnnMs: row.criticalPathThroughCnnMs,
-              });
-
-              if (selectedPhaseMs.length === 0) {
-                selectedPhaseMs = row.phaseMs;
-                selectedC1Init = row.c1Init;
-                selectedC2Init = row.c2Init;
-                selectedCriticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
-              }
-
-              break;
-            }
-
-            if (firstErrorId.length === 0) {
-              const firstError = result.diagnostics.find(
-                (diag) => diag.severity === "error"
-              )?.id;
-              firstErrorId =
-                firstError ??
-                (config.criterion === "strict-ok" ? "NOT_STRICT_OK" : "UNKNOWN");
-            }
-          }
-
-          if (phaseAccepted) {
-            break;
-          }
-        }
-
-        if (phaseAccepted && config.phaseMode === "first") {
-          break;
-        }
-      }
-
-      gridRows.push({
-        freqHz: freq.toString(),
-        wcetMs: rationalToString(wcetRational),
-        feasible: foundAny ? "yes" : "no",
-        selectedPhaseMs,
-        c1RateDst: rationalToString(tunedRates.c1RateDst),
-        c1Init: selectedC1Init,
-        c2RateSrc: rationalToString(tunedRates.c2RateSrc),
-        c2Init: selectedC2Init,
-        selectedCriticalPathThroughCnnMs,
-        firstErrorId: foundAny ? "" : firstErrorId,
-      });
-
-      if (pairCounter % 20 === 0 || pairCounter === totalPairs) {
-        // eslint-disable-next-line no-console
-        console.log(`Progress: ${pairCounter}/${totalPairs} pairs evaluated.`);
-      }
-    }
+  if (config.sweepMode === "grid") {
+    const out = runGridSweep(config, ctx, freqGrid, wcetGrid);
+    feasibleRows = out.feasibleRows;
+    gridRows = out.gridRows;
+    totalPairs = out.totalPairs;
+    skipped = out.skipped;
+  } else {
+    const out = runFrontierSweep(config, ctx, freqGrid, wcetGrid);
+    feasibleRows = out.feasibleRows;
+    frontierRows = out.frontierRows;
   }
+
+  const xyzRows = aggregateXyz(feasibleRows);
 
   mkdirSync(outDir, { recursive: true });
 
@@ -1186,6 +1528,21 @@ const run = () => {
     "criticalPathThroughCnnMs",
   ]);
 
+  const frontierCsv = toCsv(frontierRows, [
+    "anchorAxis",
+    "anchorValue",
+    "maxFeasibleValue",
+    "minInfeasibleValue",
+    "iterations",
+    "selectedPhaseMs",
+    "c1RateDst",
+    "c1Init",
+    "c2RateSrc",
+    "c2Init",
+    "selectedCriticalPathThroughCnnMs",
+    "status",
+  ]);
+
   const feasiblePairs = gridRows.filter((row) => row.feasible === "yes").length;
 
   const summary = {
@@ -1194,6 +1551,7 @@ const run = () => {
     inChannelId: config.inChannelId,
     outChannelId: config.outChannelId,
     frozenActorCount: baseModel.actors.length - 1,
+    sweepMode: config.sweepMode,
     search: {
       freqMin: config.freqMin,
       freqMax: config.freqMax,
@@ -1207,17 +1565,40 @@ const run = () => {
       initSlackQuanta: config.initSlackQuanta,
       maxC2InitExtraQuanta: config.maxC2InitExtraQuanta,
       criterion: config.criterion,
+      monotonicEarlyExit: config.monotonicEarlyExit,
+      frontierAxis: config.frontierAxis,
+      frontierTolerance: config.frontierTolerance,
+      frontierMaxIters: config.frontierMaxIters,
     },
-    totals: {
-      testedPairs: totalPairs,
-      feasiblePairs,
-      infeasiblePairs: totalPairs - feasiblePairs,
-      feasiblePhaseRows: feasibleRows.length,
-    },
+    totals:
+      config.sweepMode === "grid"
+        ? {
+            testedPairs: totalPairs,
+            feasiblePairs,
+            infeasiblePairs: totalPairs - feasiblePairs,
+            skippedByMonotonicity: skipped,
+            feasiblePhaseRows: feasibleRows.length,
+            xyzPoints: xyzRows.length,
+          }
+        : {
+            anchors: frontierRows.length,
+            anchorsWithFrontier: frontierRows.filter(
+              (row) => row.status === "frontier-found"
+            ).length,
+            anchorsAllFeasible: frontierRows.filter(
+              (row) => row.status === "all-feasible-up-to-hi"
+            ).length,
+            anchorsAllInfeasible: frontierRows.filter(
+              (row) => row.status === "all-infeasible"
+            ).length,
+            feasiblePhaseRows: feasibleRows.length,
+            xyzPoints: xyzRows.length,
+          },
     outputs: {
       feasibleCsv: path.join(config.outDir, "cnn-only-feasible.csv"),
       gridCsv: path.join(config.outDir, "cnn-only-grid.csv"),
       xyzCsv: path.join(config.outDir, "cnn-only-xyz-critical-path-cnn.csv"),
+      frontierCsv: path.join(config.outDir, "cnn-only-frontier.csv"),
       summaryJson: path.join(config.outDir, "cnn-only-summary.json"),
     },
   };
@@ -1229,6 +1610,7 @@ const run = () => {
     xyzCsv,
     "utf8"
   );
+  writeFileSync(path.join(outDir, "cnn-only-frontier.csv"), frontierCsv, "utf8");
   writeFileSync(
     path.join(outDir, "cnn-only-summary.json"),
     JSON.stringify(summary, null, 2),
@@ -1237,14 +1619,26 @@ const run = () => {
 
   // eslint-disable-next-line no-console
   console.log("Sweep completed.");
-  // eslint-disable-next-line no-console
-  console.log(`Feasible pairs: ${feasiblePairs}/${totalPairs}`);
+  if (config.sweepMode === "grid") {
+    // eslint-disable-next-line no-console
+    console.log(
+      `Feasible pairs: ${feasiblePairs}/${totalPairs} (skipped by monotonicity: ${skipped}).`
+    );
+  } else {
+    // eslint-disable-next-line no-console
+    console.log(
+      `Frontier anchors: ${frontierRows.length} (with frontier: ` +
+        `${frontierRows.filter((r) => r.status === "frontier-found").length}).`
+    );
+  }
   // eslint-disable-next-line no-console
   console.log(`Output: ${summary.outputs.feasibleCsv}`);
   // eslint-disable-next-line no-console
   console.log(`Output: ${summary.outputs.gridCsv}`);
   // eslint-disable-next-line no-console
   console.log(`Output: ${summary.outputs.xyzCsv}`);
+  // eslint-disable-next-line no-console
+  console.log(`Output: ${summary.outputs.frontierCsv}`);
   // eslint-disable-next-line no-console
   console.log(`Output: ${summary.outputs.summaryJson}`);
 };
