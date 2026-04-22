@@ -1,0 +1,41 @@
+{
+  "inputModel": "public\\px4-model-coords-camera-ai-lowfreq.json",
+  "actorId": "a2",
+  "inChannelId": "c1",
+  "outChannelId": "c2",
+  "frozenActorCount": 20,
+  "sweepMode": "grid",
+  "search": {
+    "freqMin": 50,
+    "freqMax": 500,
+    "freqStep": 50,
+    "wcetMin": 0,
+    "wcetMax": 5,
+    "wcetStep": 0.5,
+    "phaseStepMs": "1/4",
+    "maxPhaseCandidates": 64,
+    "phaseMode": "first",
+    "initSlackQuanta": 0,
+    "maxC2InitExtraQuanta": 8,
+    "criterion": "no-error",
+    "monotonicEarlyExit": true,
+    "frontierAxis": "wcet-vs-freq",
+    "frontierTolerance": 0.01,
+    "frontierMaxIters": 40
+  },
+  "totals": {
+    "testedPairs": 110,
+    "feasiblePairs": 74,
+    "infeasiblePairs": 36,
+    "skippedByMonotonicity": 29,
+    "feasiblePhaseRows": 74,
+    "xyzPoints": 74
+  },
+  "outputs": {
+    "feasibleCsv": "analysis\\cnn-only-feasible.csv",
+    "gridCsv": "analysis\\cnn-only-grid.csv",
+    "xyzCsv": "analysis\\cnn-only-xyz-critical-path-cnn.csv",
+    "frontierCsv": "analysis\\cnn-only-frontier.csv",
+    "summaryJson": "analysis\\cnn-only-summary.json"
+  }
+}
