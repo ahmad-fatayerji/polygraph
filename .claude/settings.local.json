@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx tsx *)",
+      "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./node_modules/tsx/package.json'\\).exports, null, 2\\)\\)\")"
     ]
   }
 }
