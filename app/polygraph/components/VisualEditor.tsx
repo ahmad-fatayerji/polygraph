@@ -24,10 +24,13 @@ import ReactFlow, {
   useStoreApi,
   EdgeLabelRenderer,
   BaseEdge,
+  getNodesBounds,
+  getViewportForBounds,
   getBezierPath,
   type EdgeProps,
 } from "reactflow";
 import "reactflow/dist/style.css";
+import { toPng } from "html-to-image";
 import type { PolyGraphModel } from "@/lib/polygraph/types";
 import { parseRational } from "@/lib/polygraph/rational";
 import { usePolygraphStore } from "../store";
@@ -256,6 +259,9 @@ const writeStoredHistory = (history: {
   }
 };
 
+const exportFileBase = (name?: string) =>
+  name?.trim().replace(/[^a-z0-9\-_]+/gi, "-") || "polygraph-editor";
+
 function VisualEditorInner() {
   const model = usePolygraphStore((state) => state.model);
   const setModel = usePolygraphStore((state) => state.setModel);
@@ -412,6 +418,7 @@ function VisualEditorInner() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(derivedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(derivedEdges);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     setNodes((prev) => {
@@ -615,6 +622,76 @@ function VisualEditorInner() {
     },
     [model, pushHistory, selectChannel, setModel],
   );
+
+  const handleExportPng = useCallback(async () => {
+    if (isExporting) return;
+
+    const viewport = wrapperRef.current?.querySelector(
+      ".react-flow__viewport",
+    ) as HTMLElement | null;
+    const nodesForBounds = flowRef.current?.getNodes() ?? nodes;
+    if (!viewport || nodesForBounds.length === 0) return;
+
+    const bounds = getNodesBounds(nodesForBounds);
+    const padding = 96;
+    const fallbackBounds = wrapperRef.current?.getBoundingClientRect();
+    const width = Math.max(
+      Math.ceil(bounds.width + padding * 2),
+      Math.ceil(fallbackBounds?.width ?? 1),
+    );
+    const height = Math.max(
+      Math.ceil(bounds.height + padding * 2),
+      Math.ceil(fallbackBounds?.height ?? 1),
+    );
+    const safeBounds =
+      bounds.width > 0 && bounds.height > 0
+        ? bounds
+        : {
+            x: 0,
+            y: 0,
+            width: Math.max(fallbackBounds?.width ?? 1, 1),
+            height: Math.max(fallbackBounds?.height ?? 1, 1),
+          };
+    const exportViewport = getViewportForBounds(
+      safeBounds,
+      width,
+      height,
+      0.2,
+      2,
+      0.1,
+    );
+    const background =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--panel")
+        .trim() || "#ffffff";
+
+    setIsExporting(true);
+    setContextMenu(null);
+    try {
+      const dataUrl = await toPng(viewport, {
+        backgroundColor: background,
+        cacheBust: true,
+        pixelRatio: 3,
+        skipFonts: true,
+        width,
+        height,
+        style: {
+          width: `${width}px`,
+          height: `${height}px`,
+          transform: `translate(${exportViewport.x}px, ${exportViewport.y}px) scale(${exportViewport.zoom})`,
+          transformOrigin: "top left",
+        },
+      });
+      const link = document.createElement("a");
+      link.download = `${exportFileBase(model.meta?.name)}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error("Failed to export visual editor graph", error);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [isExporting, model.meta?.name, nodes]);
 
   const removeChannels = useCallback(
     (ids: string[]) => {
@@ -1006,6 +1083,43 @@ function VisualEditorInner() {
           setContextMenu(null);
         }}
       >
+        <button
+          type="button"
+          disabled={nodes.length === 0 || isExporting}
+          onClick={handleExportPng}
+          title="Export high quality PNG"
+          className="absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel)]/95 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-strong)] shadow-sm backdrop-blur transition hover:border-[color:var(--muted)] hover:bg-[color:var(--panel-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {isExporting ? (
+            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24">
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+              />
+            </svg>
+          ) : (
+            <svg
+              className="h-3.5 w-3.5"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M10 2a.75.75 0 01.75.75v7.69l2.72-2.72a.75.75 0 111.06 1.06l-4 4a.75.75 0 01-1.06 0l-4-4a.75.75 0 111.06-1.06l2.72 2.72V2.75A.75.75 0 0110 2z" />
+              <path d="M4.25 13.5a.75.75 0 01.75.75V16h10v-1.75a.75.75 0 011.5 0v2.5a.75.75 0 01-.75.75H4.25a.75.75 0 01-.75-.75v-2.5a.75.75 0 01.75-.75z" />
+            </svg>
+          )}
+          {isExporting ? "Exporting" : "Export PNG"}
+        </button>
         <ReactFlow
           nodes={nodes}
           edges={edges}
