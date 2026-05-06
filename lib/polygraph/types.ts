@@ -1,5 +1,11 @@
 ﻿export type Severity = "error" | "warn" | "info";
 
+export type PipelineStage =
+  | "sensing"
+  | "perception"
+  | "planning"
+  | "control-actuators";
+
 export type Diagnostic = {
   id: string;
   severity: Severity;
@@ -123,6 +129,7 @@ export type PolyGraphModel = {
     jitter?: string | number; // milliseconds, release jitter bound (defaults to 0)
     priority?: number; // fixed priority for preemptive analysis (higher value = higher priority)
     processor?: number; // processor/core index (defaults to 0)
+    pipelineStage?: PipelineStage; // optional CPS pipeline category used for visual grouping
     ui?: { x: number; y: number };
   }>;
   channels: Array<{

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -35,6 +35,7 @@ type FrontierAxis = "wcet-vs-freq" | "freq-vs-wcet";
 type SweepConfig = {
   modelPath: string;
   outDir: string;
+  resumeGridPath?: string;
   actorId: string;
   inChannelId: string;
   outChannelId: string;
@@ -51,6 +52,7 @@ type SweepConfig = {
   initSlackQuanta: number;
   maxC2InitExtraQuanta: number;
   criterion: SchedCriterion;
+  requireCriticalPathThroughActor: boolean;
   sweepMode: SweepMode;
   monotonicEarlyExit: boolean;
   frontierAxis: FrontierAxis;
@@ -70,6 +72,7 @@ type FeasibleRow = {
   tickCount: string;
   worstCasePathMs: string;
   criticalPathThroughCnnMs: string;
+  criticalPathExecutionThroughCnnMs: string;
 };
 
 type GridRow = {
@@ -82,6 +85,7 @@ type GridRow = {
   c2RateSrc: string;
   c2Init: string;
   selectedCriticalPathThroughCnnMs: string;
+  selectedCriticalPathExecutionThroughCnnMs: string;
   firstErrorId: string;
 };
 
@@ -89,6 +93,7 @@ type XyzRow = {
   freqHz: string;
   wcetMs: string;
   criticalPathThroughCnnMs: string;
+  criticalPathExecutionThroughCnnMs: string;
 };
 
 type FrontierRow = {
@@ -103,7 +108,20 @@ type FrontierRow = {
   c2RateSrc: string;
   c2Init: string;
   selectedCriticalPathThroughCnnMs: string;
+  selectedCriticalPathExecutionThroughCnnMs: string;
   status: string;
+};
+
+type CriticalPathValidRow = {
+  freqHz: string;
+  wcetMs: string;
+  phaseMs: string;
+  c1RateDst: string;
+  c1Init: string;
+  c2RateSrc: string;
+  c2Init: string;
+  criticalPathThroughCnnMs: string;
+  criticalPathExecutionThroughCnnMs: string;
 };
 
 type PairEvalContext = {
@@ -127,6 +145,7 @@ type PairEvalResult = {
   selectedC1Init: string;
   selectedC2Init: string;
   selectedCriticalPathThroughCnnMs: string;
+  selectedCriticalPathExecutionThroughCnnMs: string;
   c1RateDstText: string;
   c2RateSrcText: string;
   firstErrorId: string;
@@ -159,6 +178,7 @@ Usage:
 Options:
   --model PATH                Input model JSON (default: public/px4-model-coords-camera-ai-lowfreq.json)
   --out-dir PATH              Output directory (default: analysis)
+  --resume-grid PATH          Existing grid CSV to complete (re-evaluates only monotonicity-skipped rows)
   --actor-id ID               CNN actor id (default: a2)
   --in-channel-id ID          Incoming channel to CNN (default: c1)
   --out-channel-id ID         Outgoing channel from CNN (default: c2)
@@ -172,13 +192,16 @@ Options:
   --wcet-step N               WCET step in ms (default: 0.05)
 
   --phase-step-ms R           Phase sweep step in ms, decimal or rational (default: 1/4)
-  --max-phase-candidates N    Max tested phases per (freq, wcet) pair (default: 64)
+  --max-phase-candidates N    Max tested phases per (freq, wcet) pair in phase-mode=first (default: 64)
   --phase-mode MODE           first | all (default: first)
+                              all => test every phase k*phase-step-ms in [0, period)
 
   --init-slack-quanta N       Extra init quanta added on c1/c2 after min init (default: 0)
   --max-c2-init-extra-quanta N  Extra quanta explored for c2 init above minimum (default: 8)
   --workers N                 Parallel worker threads (default: CPU count - 1)
   --criterion MODE            strict-ok | no-error (default: no-error)
+  --require-critical-path-through-actor B
+                              If true, keep only candidates with a non-empty critical path through actor-id (default: false)
 
   --sweep-mode MODE           grid | frontier (default: grid)
   --monotonic-early-exit B    In grid mode, stop WCET scan after first infeasible per freq (default: true)
@@ -342,6 +365,12 @@ const parseArgs = (argv: string[]): SweepConfig => {
   const monotonicEarlyExitRaw = (argMap.get("monotonic-early-exit") ?? "true").toLowerCase();
   const monotonicEarlyExit = monotonicEarlyExitRaw !== "false" && monotonicEarlyExitRaw !== "0";
 
+  const requireCriticalPathRaw = (
+    argMap.get("require-critical-path-through-actor") ?? "false"
+  ).toLowerCase();
+  const requireCriticalPathThroughActor =
+    requireCriticalPathRaw !== "false" && requireCriticalPathRaw !== "0";
+
   const phaseStepText = argMap.get("phase-step-ms") ?? "1/4";
 
   const cpuCount = os.cpus()?.length ?? 4;
@@ -350,6 +379,7 @@ const parseArgs = (argv: string[]): SweepConfig => {
   return {
     modelPath: argMap.get("model") ?? "public/px4-model-coords-camera-ai-lowfreq.json",
     outDir: argMap.get("out-dir") ?? "analysis",
+    resumeGridPath: argMap.get("resume-grid"),
     actorId: argMap.get("actor-id") ?? "a2",
     inChannelId: argMap.get("in-channel-id") ?? "c1",
     outChannelId: argMap.get("out-channel-id") ?? "c2",
@@ -372,6 +402,7 @@ const parseArgs = (argv: string[]): SweepConfig => {
       "--max-c2-init-extra-quanta"
     ),
     criterion: criterionRaw,
+    requireCriticalPathThroughActor,
     sweepMode: sweepModeRaw,
     monotonicEarlyExit,
     frontierAxis: frontierAxisRaw,
@@ -476,7 +507,8 @@ const buildPhaseCandidates = (
   periodMs: Rational,
   baselinePhaseMs: Rational,
   phaseStepMs: Rational,
-  maxPhaseCandidates: number
+  maxPhaseCandidates: number,
+  phaseMode: PhaseMode
 ) => {
   const candidates: Rational[] = [];
   const pushUnique = (candidate: Rational) => {
@@ -488,10 +520,11 @@ const buildPhaseCandidates = (
   pushUnique(modRational(baselinePhaseMs, periodMs));
 
   let k = 0n;
-  while (candidates.length < maxPhaseCandidates) {
+  while (true) {
     const candidate = mul(fromBigint(k), phaseStepMs);
     if (compare(candidate, periodMs) >= 0) break;
     pushUnique(candidate);
+    if (phaseMode === "first" && candidates.length >= maxPhaseCandidates) break;
     k += 1n;
   }
 
@@ -674,6 +707,32 @@ const criticalPathFromWorstCaseArtifact = (
   return best ? rationalToString(best) : "";
 };
 
+const executionPathFromWorstCaseArtifact = (
+  result: ReturnType<typeof verify>,
+  actorId: string
+) => {
+  const artifact = result.artifacts?.worstCasePath;
+  if (!artifact) return "";
+
+  let best: Rational | null = null;
+
+  const consider = (executionCostText: string, actorPath: string[]) => {
+    if (!actorPath.includes(actorId)) return;
+    const executionCost = parseRationalSafe(executionCostText);
+    if (!executionCost) return;
+    if (best === null || compare(executionCost, best) > 0) {
+      best = executionCost;
+    }
+  };
+
+  consider(artifact.executionCost, artifact.path);
+  for (const ranked of artifact.rankedPaths) {
+    consider(ranked.executionCost, ranked.path);
+  }
+
+  return best ? rationalToString(best) : "";
+};
+
 const computeCriticalPathThroughActorMs = (
   model: PolyGraphModel,
   result: ReturnType<typeof verify>,
@@ -738,6 +797,36 @@ const computeCriticalPathThroughActorMs = (
   }
 
   return rationalToString(worst);
+};
+
+const computeCriticalPathExecutionThroughActorMs = (
+  model: PolyGraphModel,
+  result: ReturnType<typeof verify>,
+  actorId: string
+) => {
+  const fromArtifact = executionPathFromWorstCaseArtifact(result, actorId);
+  if (fromArtifact.length > 0) return fromArtifact;
+
+  const actorExec = new Map<string, Rational>();
+  for (const actor of model.actors) {
+    actorExec.set(actor.id, parseDurationMs(actor.executionTime));
+  }
+
+  const { paths } = enumeratePathsThroughActor(model, actorId);
+  if (paths.length === 0) return "";
+
+  let worst: Rational | null = null;
+  for (const actorPath of paths) {
+    let total = { ...rationalZero };
+    for (const pathActorId of actorPath) {
+      total = add(total, actorExec.get(pathActorId) ?? rationalZero);
+    }
+    if (worst === null || compare(total, worst) > 0) {
+      worst = total;
+    }
+  }
+
+  return worst ? rationalToString(worst) : "";
 };
 
 const appendUniqueRational = (items: Rational[], value: Rational) => {
@@ -886,6 +975,174 @@ const toCsv = <T extends Record<string, string>>(rows: T[], headers: Array<keyof
   return body.length > 0 ? `${headerLine}\n${body}\n` : `${headerLine}\n`;
 };
 
+const formatElapsed = (elapsedMs: number) => {
+  const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => value.toString().padStart(2, "0")).join(":");
+};
+
+const flattenGridRowsByTask = (gridRowsByTask: Map<number, GridRow[]>, taskCount: number) => {
+  const rows: GridRow[] = [];
+  for (let i = 0; i < taskCount; i += 1) {
+    const taskRows = gridRowsByTask.get(i) ?? [];
+    for (const row of taskRows) rows.push(row);
+  }
+  return rows;
+};
+
+const writeGridCheckpoint = (
+  outDir: string,
+  gridRows: GridRow[],
+  feasibleRows: FeasibleRow[],
+  progress: {
+    completedFreqs: number;
+    totalFreqs: number;
+    completedPairs: number;
+    totalPairs: number;
+    skippedByMonotonicity: number;
+    elapsedMs: number;
+    lastCompletedFreqHz: string;
+    activeRows?: Array<{
+      taskId: number;
+      freqHz: string;
+      currentWcetMs: string;
+      completedWcets: number;
+      totalWcets: number;
+    }>;
+  }
+) => {
+  const gridCsv = toCsv(gridRows, [
+    "freqHz",
+    "wcetMs",
+    "feasible",
+    "selectedPhaseMs",
+    "c1RateDst",
+    "c1Init",
+    "c2RateSrc",
+    "c2Init",
+    "selectedCriticalPathThroughCnnMs",
+    "selectedCriticalPathExecutionThroughCnnMs",
+    "firstErrorId",
+  ]);
+  const feasibleCsv = toCsv(feasibleRows, [
+    "freqHz",
+    "wcetMs",
+    "phaseMs",
+    "c1RateDst",
+    "c1Init",
+    "c2RateSrc",
+    "c2Init",
+    "tickCount",
+    "worstCasePathMs",
+    "criticalPathThroughCnnMs",
+    "criticalPathExecutionThroughCnnMs",
+  ]);
+
+  writeFileSync(path.join(outDir, "cnn-only-grid.partial.csv"), gridCsv, "utf8");
+  writeFileSync(path.join(outDir, "cnn-only-feasible.partial.csv"), feasibleCsv, "utf8");
+  writeFileSync(
+    path.join(outDir, "cnn-only-progress.json"),
+    JSON.stringify(
+      {
+        stage: "grid-sweep",
+        completedFreqs: progress.completedFreqs,
+        totalFreqs: progress.totalFreqs,
+        completedPairs: progress.completedPairs,
+        totalPairs: progress.totalPairs,
+        skippedByMonotonicity: progress.skippedByMonotonicity,
+        lastCompletedFreqHz: progress.lastCompletedFreqHz,
+        elapsedMs: progress.elapsedMs,
+        elapsed: formatElapsed(progress.elapsedMs),
+        percentComplete:
+          progress.totalPairs > 0 ? (progress.completedPairs / progress.totalPairs) * 100 : 0,
+        activeRows: progress.activeRows ?? [],
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+};
+
+const buildPairKey = (freqHz: string, wcetMs: string) => `${freqHz}\0${wcetMs}`;
+
+const deriveFeasibleRowsPath = (gridPath: string) => {
+  const mapped = gridPath.replace(
+    /-grid(\.partial)?\.csv$/i,
+    "-feasible$1.csv"
+  );
+  return mapped === gridPath ? "" : mapped;
+};
+
+const parseCsv = (text: string) => {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === "\"") {
+        if (text[i + 1] === "\"") {
+          cell += "\"";
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+
+    if (ch === "\"") {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else if (ch !== "\r") {
+      cell += ch;
+    }
+  }
+
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows;
+};
+
+const loadCsvRows = <T extends Record<string, string>>(csvPath: string): T[] => {
+  const text = readFileSync(csvPath, "utf8");
+  const rows = parseCsv(text);
+  if (rows.length === 0) return [];
+  const header = rows[0];
+  return rows
+    .slice(1)
+    .filter((values) => !(values.length === 1 && values[0].trim().length === 0))
+    .map(
+      (values) =>
+        Object.fromEntries(header.map((key, idx) => [key, values[idx] ?? ""])) as T
+    );
+};
+
+const rationalToFiniteNumber = (value: Rational, what: string) => {
+  const num = Number(value.n) / Number(value.d);
+  if (!Number.isFinite(num)) {
+    fail(`Cannot convert ${what} to finite number.`);
+  }
+  return num;
+};
+
 const parsePositiveRateMagnitude = (text: string, label: string): Rational => {
   const parsed = parseRational(text);
   if (!parsed.ok) fail(`Invalid ${label}: ${text}`);
@@ -997,6 +1254,7 @@ const evaluatePair = (
       selectedC1Init: "",
       selectedC2Init: "",
       selectedCriticalPathThroughCnnMs: "",
+      selectedCriticalPathExecutionThroughCnnMs: "",
       c1RateDstText: "",
       c2RateSrcText: "",
       firstErrorId: "E_TOPOLOGY_INVALID",
@@ -1028,7 +1286,8 @@ const evaluatePair = (
     pairPeriodMs,
     ctx.basePhaseMs,
     config.phaseStepMs,
-    config.maxPhaseCandidates
+    config.maxPhaseCandidates,
+    config.phaseMode
   );
 
   let foundAny = false;
@@ -1037,6 +1296,7 @@ const evaluatePair = (
   let selectedC1Init = "";
   let selectedC2Init = "";
   let selectedCriticalPathThroughCnnMs = "";
+  let selectedCriticalPathExecutionThroughCnnMs = "";
   const feasibleRowsForPair: FeasibleRow[] = [];
 
   for (const phaseMs of phaseCandidates) {
@@ -1098,15 +1358,32 @@ const evaluatePair = (
         });
 
         if (isSchedulable(result, config.criterion)) {
-          foundAny = true;
-          phaseAccepted = true;
-          const tickCount = result.artifacts?.hyperperiod?.tickCount;
-          const worstPath = result.artifacts?.worstCasePath?.duration;
           const criticalPathThroughCnnMs = computeCriticalPathThroughActorMs(
             candidate,
             result,
             config.actorId
           );
+
+          if (
+            config.requireCriticalPathThroughActor &&
+            criticalPathThroughCnnMs.length === 0
+          ) {
+            if (firstErrorId.length === 0) {
+              firstErrorId = "NO_CRITICAL_PATH_THROUGH_ACTOR";
+            }
+            continue;
+          }
+
+          foundAny = true;
+          phaseAccepted = true;
+          const tickCount = result.artifacts?.hyperperiod?.tickCount;
+          const worstPath = result.artifacts?.worstCasePath?.duration;
+          const criticalPathExecutionThroughCnnMs =
+            computeCriticalPathExecutionThroughActorMs(
+              candidate,
+              result,
+              config.actorId
+            );
 
           const row: FeasibleRow = {
             freqHz: freq.toString(),
@@ -1119,6 +1396,7 @@ const evaluatePair = (
             tickCount: tickCount !== undefined ? tickCount.toString() : "",
             worstCasePathMs: worstPath ?? "",
             criticalPathThroughCnnMs,
+            criticalPathExecutionThroughCnnMs,
           };
 
           feasibleRowsForPair.push(row);
@@ -1128,6 +1406,8 @@ const evaluatePair = (
             selectedC1Init = row.c1Init;
             selectedC2Init = row.c2Init;
             selectedCriticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
+            selectedCriticalPathExecutionThroughCnnMs =
+              row.criticalPathExecutionThroughCnnMs;
           }
 
           break;
@@ -1158,6 +1438,7 @@ const evaluatePair = (
     selectedC1Init,
     selectedC2Init,
     selectedCriticalPathThroughCnnMs,
+    selectedCriticalPathExecutionThroughCnnMs,
     c1RateDstText: rationalToString(tunedRates.c1RateDst),
     c2RateSrcText: rationalToString(tunedRates.c2RateSrc),
     firstErrorId,
@@ -1175,17 +1456,80 @@ const aggregateXyz = (feasibleRows: FeasibleRow[]): XyzRow[] => {
         freqHz: row.freqHz,
         wcetMs: row.wcetMs,
         criticalPathThroughCnnMs: row.criticalPathThroughCnnMs,
+        criticalPathExecutionThroughCnnMs: row.criticalPathExecutionThroughCnnMs,
       });
       continue;
     }
-    const a = parseRationalSafe(existing.criticalPathThroughCnnMs);
-    const b = parseRationalSafe(row.criticalPathThroughCnnMs);
+    const a = parseRationalSafe(existing.criticalPathExecutionThroughCnnMs);
+    const b = parseRationalSafe(row.criticalPathExecutionThroughCnnMs);
     if (a && b && compare(b, a) > 0) {
       existing.criticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
+      existing.criticalPathExecutionThroughCnnMs =
+        row.criticalPathExecutionThroughCnnMs;
     } else if (!a && b) {
       existing.criticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
+      existing.criticalPathExecutionThroughCnnMs =
+        row.criticalPathExecutionThroughCnnMs;
     }
   }
+  return [...best.values()].sort((l, r) => {
+    const fl = Number(l.freqHz);
+    const fr = Number(r.freqHz);
+    if (fl !== fr) return fl - fr;
+    return Number(l.wcetMs) - Number(r.wcetMs);
+  });
+};
+
+const aggregateCriticalPathValidRows = (
+  feasibleRows: FeasibleRow[]
+): CriticalPathValidRow[] => {
+  const best = new Map<string, CriticalPathValidRow>();
+
+  for (const row of feasibleRows) {
+    if (!row.criticalPathThroughCnnMs || row.criticalPathThroughCnnMs.length === 0) {
+      continue;
+    }
+
+    const key = `${row.freqHz}\0${row.wcetMs}`;
+    const existing = best.get(key);
+    if (!existing) {
+      best.set(key, {
+        freqHz: row.freqHz,
+        wcetMs: row.wcetMs,
+        phaseMs: row.phaseMs,
+        c1RateDst: row.c1RateDst,
+        c1Init: row.c1Init,
+        c2RateSrc: row.c2RateSrc,
+        c2Init: row.c2Init,
+        criticalPathThroughCnnMs: row.criticalPathThroughCnnMs,
+        criticalPathExecutionThroughCnnMs: row.criticalPathExecutionThroughCnnMs,
+      });
+      continue;
+    }
+
+    const a = parseRationalSafe(existing.criticalPathExecutionThroughCnnMs);
+    const b = parseRationalSafe(row.criticalPathExecutionThroughCnnMs);
+    if (a && b && compare(b, a) > 0) {
+      existing.phaseMs = row.phaseMs;
+      existing.c1RateDst = row.c1RateDst;
+      existing.c1Init = row.c1Init;
+      existing.c2RateSrc = row.c2RateSrc;
+      existing.c2Init = row.c2Init;
+      existing.criticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
+      existing.criticalPathExecutionThroughCnnMs =
+        row.criticalPathExecutionThroughCnnMs;
+    } else if (!a && b) {
+      existing.phaseMs = row.phaseMs;
+      existing.c1RateDst = row.c1RateDst;
+      existing.c1Init = row.c1Init;
+      existing.c2RateSrc = row.c2RateSrc;
+      existing.c2Init = row.c2Init;
+      existing.criticalPathThroughCnnMs = row.criticalPathThroughCnnMs;
+      existing.criticalPathExecutionThroughCnnMs =
+        row.criticalPathExecutionThroughCnnMs;
+    }
+  }
+
   return [...best.values()].sort((l, r) => {
     const fl = Number(l.freqHz);
     const fr = Number(r.freqHz);
@@ -1245,6 +1589,7 @@ type WorkerInit = {
 
 type WorkerTask =
   | { kind: "grid-row"; taskId: number; freq: number; wcetGrid: number[] }
+  | { kind: "grid-pair"; taskId: number; freq: number; wcet: number }
   | {
       kind: "frontier-anchor";
       taskId: number;
@@ -1255,12 +1600,26 @@ type WorkerTask =
 
 type WorkerReply =
   | {
+      kind: "grid-row-progress";
+      taskId: number;
+      freq: number;
+      currentWcetMs: string;
+      completedWcets: number;
+      totalWcets: number;
+    }
+  | {
       kind: "grid-row-result";
       taskId: number;
       freq: number;
       gridRows: GridRow[];
       feasibleRows: FeasibleRow[];
       skipped: number;
+    }
+  | {
+      kind: "grid-pair-result";
+      taskId: number;
+      row: GridRow;
+      feasibleRows: FeasibleRow[];
     }
   | {
       kind: "frontier-anchor-result";
@@ -1305,7 +1664,13 @@ const processGridRow = (
   config: SweepConfig,
   ctx: PairEvalContext,
   freq: number,
-  sortedWcet: number[]
+  sortedWcet: number[],
+  onProgress?: (progress: {
+    freq: number;
+    currentWcetMs: string;
+    completedWcets: number;
+    totalWcets: number;
+  }) => void
 ): { gridRows: GridRow[]; feasibleRows: FeasibleRow[]; skipped: number } => {
   const gridRows: GridRow[] = [];
   const feasibleRows: FeasibleRow[] = [];
@@ -1313,10 +1678,18 @@ const processGridRow = (
   let lockedInfeasible = false;
   let infeasibleCarry: { firstErrorId: string; c1RateDstText: string; c2RateSrcText: string } | null = null;
 
-  for (const wcet of sortedWcet) {
+  for (let wcetIndex = 0; wcetIndex < sortedWcet.length; wcetIndex += 1) {
+    const wcet = sortedWcet[wcetIndex];
+    const wcetRational = parseNumberToRational(wcet);
+    if (wcetRational === null) throw new Error(`Cannot parse WCET value: ${wcet}`);
+    onProgress?.({
+      freq,
+      currentWcetMs: rationalToString(wcetRational),
+      completedWcets: wcetIndex,
+      totalWcets: sortedWcet.length,
+    });
+
     if (lockedInfeasible && config.monotonicEarlyExit) {
-      const wcetRational = parseNumberToRational(wcet);
-      if (wcetRational === null) throw new Error(`Cannot parse WCET value: ${wcet}`);
       gridRows.push({
         freqHz: freq.toString(),
         wcetMs: rationalToString(wcetRational),
@@ -1327,6 +1700,7 @@ const processGridRow = (
         c2RateSrc: infeasibleCarry?.c2RateSrcText ?? "",
         c2Init: "",
         selectedCriticalPathThroughCnnMs: "",
+        selectedCriticalPathExecutionThroughCnnMs: "",
         firstErrorId: infeasibleCarry?.firstErrorId
           ? `${infeasibleCarry.firstErrorId} (skipped: WCET monotonicity)`
           : "SKIPPED_MONOTONIC",
@@ -1357,6 +1731,8 @@ const processGridRow = (
       c2RateSrc: result.c2RateSrcText,
       c2Init: result.selectedC2Init,
       selectedCriticalPathThroughCnnMs: result.selectedCriticalPathThroughCnnMs,
+      selectedCriticalPathExecutionThroughCnnMs:
+        result.selectedCriticalPathExecutionThroughCnnMs,
       firstErrorId: result.feasible ? "" : result.firstErrorId,
     });
   }
@@ -1428,6 +1804,8 @@ const processFrontierAnchor = (
     c2Init: lastFeasible?.selectedC2Init ?? "",
     selectedCriticalPathThroughCnnMs:
       lastFeasible?.selectedCriticalPathThroughCnnMs ?? "",
+    selectedCriticalPathExecutionThroughCnnMs:
+      lastFeasible?.selectedCriticalPathExecutionThroughCnnMs ?? "",
     status,
   };
 
@@ -1448,7 +1826,16 @@ const runWorker = () => {
 
     if (task.kind === "grid-row") {
       const sortedWcet = [...task.wcetGrid].sort((a, b) => a - b);
-      const out = processGridRow(init.config, ctx, task.freq, sortedWcet);
+      const out = processGridRow(init.config, ctx, task.freq, sortedWcet, (progress) => {
+        parentPort!.postMessage({
+          kind: "grid-row-progress",
+          taskId: task.taskId,
+          freq: progress.freq,
+          currentWcetMs: progress.currentWcetMs,
+          completedWcets: progress.completedWcets,
+          totalWcets: progress.totalWcets,
+        } satisfies WorkerReply);
+      });
       const reply: WorkerReply = {
         kind: "grid-row-result",
         taskId: task.taskId,
@@ -1456,6 +1843,31 @@ const runWorker = () => {
         gridRows: out.gridRows,
         feasibleRows: out.feasibleRows,
         skipped: out.skipped,
+      };
+      parentPort!.postMessage(reply);
+      return;
+    }
+
+    if (task.kind === "grid-pair") {
+      const result = evaluatePair(init.config, ctx, task.freq, task.wcet);
+      const reply: WorkerReply = {
+        kind: "grid-pair-result",
+        taskId: task.taskId,
+        row: {
+          freqHz: task.freq.toString(),
+          wcetMs: rationalToString(result.wcetRational),
+          feasible: result.feasible ? "yes" : "no",
+          selectedPhaseMs: result.selectedPhaseMs,
+          c1RateDst: result.c1RateDstText,
+          c1Init: result.selectedC1Init,
+          c2RateSrc: result.c2RateSrcText,
+          c2Init: result.selectedC2Init,
+          selectedCriticalPathThroughCnnMs: result.selectedCriticalPathThroughCnnMs,
+          selectedCriticalPathExecutionThroughCnnMs:
+            result.selectedCriticalPathExecutionThroughCnnMs,
+          firstErrorId: result.feasible ? "" : result.firstErrorId,
+        },
+        feasibleRows: result.feasibleRowsForPair,
       };
       parentPort!.postMessage(reply);
       return;
@@ -1496,7 +1908,16 @@ const dispatchPool = async <T extends WorkerTask, R extends WorkerReply>(
     for (const task of tasks) {
       if (task.kind === "grid-row") {
         const sorted = [...task.wcetGrid].sort((a, b) => a - b);
-        const out = processGridRow(config, ctx, task.freq, sorted);
+        const out = processGridRow(config, ctx, task.freq, sorted, (progress) => {
+          onReply({
+            kind: "grid-row-progress",
+            taskId: task.taskId,
+            freq: progress.freq,
+            currentWcetMs: progress.currentWcetMs,
+            completedWcets: progress.completedWcets,
+            totalWcets: progress.totalWcets,
+          } as R);
+        });
         onReply({
           kind: "grid-row-result",
           taskId: task.taskId,
@@ -1504,6 +1925,27 @@ const dispatchPool = async <T extends WorkerTask, R extends WorkerReply>(
           gridRows: out.gridRows,
           feasibleRows: out.feasibleRows,
           skipped: out.skipped,
+        } as R);
+      } else if (task.kind === "grid-pair") {
+        const result = evaluatePair(config, ctx, task.freq, task.wcet);
+        onReply({
+          kind: "grid-pair-result",
+          taskId: task.taskId,
+          row: {
+            freqHz: task.freq.toString(),
+            wcetMs: rationalToString(result.wcetRational),
+            feasible: result.feasible ? "yes" : "no",
+            selectedPhaseMs: result.selectedPhaseMs,
+            c1RateDst: result.c1RateDstText,
+            c1Init: result.selectedC1Init,
+            c2RateSrc: result.c2RateSrcText,
+            c2Init: result.selectedC2Init,
+            selectedCriticalPathThroughCnnMs: result.selectedCriticalPathThroughCnnMs,
+            selectedCriticalPathExecutionThroughCnnMs:
+              result.selectedCriticalPathExecutionThroughCnnMs,
+            firstErrorId: result.feasible ? "" : result.firstErrorId,
+          },
+          feasibleRows: result.feasibleRowsForPair,
         } as R);
       } else {
         const out = processFrontierAnchor(
@@ -1582,13 +2024,18 @@ const dispatchPool = async <T extends WorkerTask, R extends WorkerReply>(
       const w = new Worker(bootstrapPath, { workerData: init });
       workers.push(w);
       w.on("message", (reply: WorkerReply) => {
-        inflight -= 1;
         try {
           onReply(reply as R);
         } catch (err) {
           teardown(err);
           return;
         }
+
+        if (reply.kind === "grid-row-progress") {
+          return;
+        }
+
+        inflight -= 1;
         finishOne();
         assignNext(w);
       });
@@ -1607,7 +2054,8 @@ const runGridSweepParallel = async (
   config: SweepConfig,
   baseModelJson: string,
   freqGrid: number[],
-  wcetGrid: number[]
+  wcetGrid: number[],
+  outDir: string
 ) => {
   const tasks: WorkerTask[] = freqGrid.map((freq, idx) => ({
     kind: "grid-row" as const,
@@ -1618,7 +2066,15 @@ const runGridSweepParallel = async (
   const totalPairs = freqGrid.length * wcetGrid.length;
   const gridRowsByTask = new Map<number, GridRow[]>();
   const feasibleRows: FeasibleRow[] = [];
+  const activeRows = new Map<
+    number,
+    { freqHz: string; currentWcetMs: string; completedWcets: number; totalWcets: number }
+  >();
   let skipped = 0;
+  let completedFreqs = 0;
+  let completedPairs = 0;
+  const startedAtMs = Date.now();
+  const lastLiveLogMsByTask = new Map<number, number>();
 
   // eslint-disable-next-line no-console
   console.log(
@@ -1627,10 +2083,88 @@ const runGridSweepParallel = async (
   );
 
   await dispatchPool(config, baseModelJson, tasks, (reply) => {
+    if (reply.kind === "grid-row-progress") {
+      activeRows.set(reply.taskId, {
+        freqHz: reply.freq.toString(),
+        currentWcetMs: reply.currentWcetMs,
+        completedWcets: reply.completedWcets,
+        totalWcets: reply.totalWcets,
+      });
+
+      const now = Date.now();
+      const lastLogMs = lastLiveLogMsByTask.get(reply.taskId) ?? 0;
+      const shouldLog =
+        reply.completedWcets === 0 ||
+        reply.completedWcets + 1 === reply.totalWcets ||
+        reply.completedWcets % 5 === 0 ||
+        now - lastLogMs >= 15000;
+
+      if (shouldLog) {
+        lastLiveLogMsByTask.set(reply.taskId, now);
+        const elapsedMs = now - startedAtMs;
+        const partialGridRows = flattenGridRowsByTask(gridRowsByTask, tasks.length);
+        writeGridCheckpoint(outDir, partialGridRows, feasibleRows, {
+          completedFreqs,
+          totalFreqs: tasks.length,
+          completedPairs,
+          totalPairs,
+          skippedByMonotonicity: skipped,
+          elapsedMs,
+          lastCompletedFreqHz: "",
+          activeRows: [...activeRows.entries()].map(([taskId, row]) => ({
+            taskId,
+            ...row,
+          })),
+        });
+
+        // eslint-disable-next-line no-console
+        console.log(
+          `[work] freq=${reply.freq} Hz, wcet=${reply.currentWcetMs} ms, ` +
+            `within-row=${reply.completedWcets + 1}/${reply.totalWcets}, ` +
+            `rows-done=${completedFreqs}/${tasks.length}, elapsed=${formatElapsed(elapsedMs)}.`
+        );
+      }
+      return;
+    }
+
     if (reply.kind !== "grid-row-result") return;
     gridRowsByTask.set(reply.taskId, reply.gridRows);
+    activeRows.delete(reply.taskId);
+    lastLiveLogMsByTask.delete(reply.taskId);
     for (const row of reply.feasibleRows) feasibleRows.push(row);
     skipped += reply.skipped;
+    completedFreqs += 1;
+    completedPairs += reply.gridRows.length;
+
+    const elapsedMs = Date.now() - startedAtMs;
+    const avgFreqMs = completedFreqs > 0 ? elapsedMs / completedFreqs : 0;
+    const remainingFreqs = tasks.length - completedFreqs;
+    const etaMs = remainingFreqs > 0 ? avgFreqMs * remainingFreqs : 0;
+    const partialGridRows = flattenGridRowsByTask(gridRowsByTask, tasks.length);
+    const feasiblePairsSoFar = partialGridRows.filter((row) => row.feasible === "yes").length;
+    const progressPct = totalPairs > 0 ? (completedPairs / totalPairs) * 100 : 0;
+
+    writeGridCheckpoint(outDir, partialGridRows, feasibleRows, {
+      completedFreqs,
+      totalFreqs: tasks.length,
+      completedPairs,
+      totalPairs,
+      skippedByMonotonicity: skipped,
+      elapsedMs,
+      lastCompletedFreqHz: reply.freq.toString(),
+      activeRows: [...activeRows.entries()].map(([taskId, row]) => ({
+        taskId,
+        ...row,
+      })),
+    });
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[grid] ${completedFreqs}/${tasks.length} freqs done, ` +
+        `${completedPairs}/${totalPairs} pairs (${progressPct.toFixed(1)}%), ` +
+        `last=${reply.freq} Hz, feasible-so-far=${feasiblePairsSoFar}, ` +
+        `elapsed=${formatElapsed(elapsedMs)}, eta~=${formatElapsed(etaMs)}.`
+    );
   });
 
   const gridRows: GridRow[] = [];
@@ -1639,6 +2173,151 @@ const runGridSweepParallel = async (
     for (const row of rows) gridRows.push(row);
   }
   return { feasibleRows, gridRows, totalPairs, skipped };
+};
+
+const runResumeGridSweep = async (
+  config: SweepConfig,
+  ctx: PairEvalContext,
+  resumeGridPath: string,
+  freqGrid: number[],
+  wcetGrid: number[],
+  outDir: string
+) => {
+  const existingRows = loadCsvRows<GridRow>(resumeGridPath);
+  const completedRows: GridRow[] = [];
+  const feasibleRowsPath = deriveFeasibleRowsPath(resumeGridPath);
+  const feasibleRows = existsSync(feasibleRowsPath)
+    ? loadCsvRows<FeasibleRow>(feasibleRowsPath)
+    : [];
+  const pairTasks: Array<WorkerTask & { kind: "grid-pair" }> = [];
+  const existingByKey = new Map<string, GridRow>();
+  for (const row of existingRows) {
+    existingByKey.set(buildPairKey(row.freqHz, row.wcetMs), row);
+  }
+
+  for (const freq of freqGrid) {
+    for (const wcet of wcetGrid) {
+      const wcetRational = parseNumberToRational(wcet);
+      if (wcetRational === null) {
+        throw new Error(`Cannot parse WCET value: ${wcet}`);
+      }
+      const freqText = freq.toString();
+      const wcetText = rationalToString(wcetRational);
+      const key = buildPairKey(freqText, wcetText);
+      const row = existingByKey.get(key);
+      const index = completedRows.length;
+
+      if (!row) {
+        completedRows.push({
+          freqHz: freqText,
+          wcetMs: wcetText,
+          feasible: "no",
+          selectedPhaseMs: "",
+          c1RateDst: "",
+          c1Init: "",
+          c2RateSrc: "",
+          c2Init: "",
+          selectedCriticalPathThroughCnnMs: "",
+          selectedCriticalPathExecutionThroughCnnMs: "",
+          firstErrorId: "MISSING_FROM_RESUME",
+        });
+        pairTasks.push({
+          kind: "grid-pair",
+          taskId: index,
+          freq,
+          wcet,
+        });
+        continue;
+      }
+
+      const skippedByMonotonicity =
+        row.firstErrorId === "SKIPPED_MONOTONIC" ||
+        row.firstErrorId.includes("skipped: WCET monotonicity");
+
+      completedRows.push(row);
+      if (!skippedByMonotonicity) {
+        continue;
+      }
+
+      pairTasks.push({
+        kind: "grid-pair",
+        taskId: index,
+        freq,
+        wcet,
+      });
+    }
+  }
+
+  const baseModelJson = JSON.stringify(ctx.baseModel);
+  let recomputed = 0;
+  const totalPairs = completedRows.length;
+  const startedAtMs = Date.now();
+
+  if (pairTasks.length === 0) {
+    writeGridCheckpoint(outDir, completedRows, feasibleRows, {
+      completedFreqs: freqGrid.length,
+      totalFreqs: freqGrid.length,
+      completedPairs: totalPairs,
+      totalPairs,
+      skippedByMonotonicity: 0,
+      elapsedMs: 0,
+      lastCompletedFreqHz: "",
+      activeRows: [],
+    });
+  }
+
+  await dispatchPool(config, baseModelJson, pairTasks, (reply) => {
+    if (reply.kind !== "grid-pair-result") return;
+    completedRows[reply.taskId] = reply.row;
+    for (const item of reply.feasibleRows) feasibleRows.push(item);
+    recomputed += 1;
+    const elapsedMs = Date.now() - startedAtMs;
+    const completedPairCount = completedRows.filter(
+      (row) => row.firstErrorId !== "MISSING_FROM_RESUME"
+    ).length;
+    const completedFreqCount = new Set(
+      completedRows
+        .filter((row) => row.firstErrorId !== "MISSING_FROM_RESUME")
+        .map((row) => row.freqHz)
+    ).size;
+    const avgPairMs = recomputed > 0 ? elapsedMs / recomputed : 0;
+    const remainingPairs = pairTasks.length - recomputed;
+    const etaMs = remainingPairs > 0 ? avgPairMs * remainingPairs : 0;
+
+    writeGridCheckpoint(outDir, completedRows, feasibleRows, {
+      completedFreqs: completedFreqCount,
+      totalFreqs: freqGrid.length,
+      completedPairs: completedPairCount,
+      totalPairs,
+      skippedByMonotonicity: 0,
+      elapsedMs,
+      lastCompletedFreqHz: reply.row.freqHz,
+      activeRows: [],
+    });
+
+    if (recomputed % 20 === 0 || recomputed === pairTasks.length) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[resume] ${recomputed}/${pairTasks.length} rows recomputed, ` +
+          `grid=${completedPairCount}/${totalPairs}, last=${reply.row.freqHz} Hz @ ${reply.row.wcetMs} ms, ` +
+          `elapsed=${formatElapsed(elapsedMs)}, eta~=${formatElapsed(etaMs)}.`
+      );
+    }
+  });
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `Resume-grid mode: recomputed ${recomputed} rows, reused ${
+      totalPairs - recomputed
+    } rows from ${existingRows.length} loaded resume rows.`
+  );
+
+  return {
+    gridRows: completedRows,
+    feasibleRows,
+    totalPairs,
+    skipped: 0,
+  };
 };
 
 const runFrontierSweepParallel = async (
@@ -1704,6 +2383,7 @@ const run = async () => {
 
   const modelPath = path.resolve(process.cwd(), config.modelPath);
   const outDir = path.resolve(process.cwd(), config.outDir);
+  mkdirSync(outDir, { recursive: true });
 
   const baseModel = JSON.parse(readFileSync(modelPath, "utf8")) as PolyGraphModel;
   const baseActorMaybe = baseModel.actors.find((entry) => entry.id === config.actorId);
@@ -1757,11 +2437,24 @@ const run = async () => {
   let totalPairs = 0;
   let skipped = 0;
 
-  void ctx;
   const baseModelJson = JSON.stringify(baseModel);
 
-  if (config.sweepMode === "grid") {
-    const out = await runGridSweepParallel(config, baseModelJson, freqGrid, wcetGrid);
+  if (config.resumeGridPath) {
+    const resumeGridPath = path.resolve(process.cwd(), config.resumeGridPath);
+    const out = await runResumeGridSweep(
+      config,
+      ctx,
+      resumeGridPath,
+      freqGrid,
+      wcetGrid,
+      outDir
+    );
+    feasibleRows = out.feasibleRows;
+    gridRows = out.gridRows;
+    totalPairs = out.totalPairs;
+    skipped = out.skipped;
+  } else if (config.sweepMode === "grid") {
+    const out = await runGridSweepParallel(config, baseModelJson, freqGrid, wcetGrid, outDir);
     feasibleRows = out.feasibleRows;
     gridRows = out.gridRows;
     totalPairs = out.totalPairs;
@@ -1778,8 +2471,7 @@ const run = async () => {
   }
 
   const xyzRows = aggregateXyz(feasibleRows);
-
-  mkdirSync(outDir, { recursive: true });
+  const criticalPathValidRows = aggregateCriticalPathValidRows(feasibleRows);
 
   const feasibleCsv = toCsv(feasibleRows, [
     "freqHz",
@@ -1792,6 +2484,7 @@ const run = async () => {
     "tickCount",
     "worstCasePathMs",
     "criticalPathThroughCnnMs",
+    "criticalPathExecutionThroughCnnMs",
   ]);
 
   const gridCsv = toCsv(gridRows, [
@@ -1804,6 +2497,7 @@ const run = async () => {
     "c2RateSrc",
     "c2Init",
     "selectedCriticalPathThroughCnnMs",
+    "selectedCriticalPathExecutionThroughCnnMs",
     "firstErrorId",
   ]);
 
@@ -1811,6 +2505,19 @@ const run = async () => {
     "freqHz",
     "wcetMs",
     "criticalPathThroughCnnMs",
+    "criticalPathExecutionThroughCnnMs",
+  ]);
+
+  const criticalPathValidCsv = toCsv(criticalPathValidRows, [
+    "freqHz",
+    "wcetMs",
+    "phaseMs",
+    "c1RateDst",
+    "c1Init",
+    "c2RateSrc",
+    "c2Init",
+    "criticalPathThroughCnnMs",
+    "criticalPathExecutionThroughCnnMs",
   ]);
 
   const frontierCsv = toCsv(frontierRows, [
@@ -1825,6 +2532,7 @@ const run = async () => {
     "c2RateSrc",
     "c2Init",
     "selectedCriticalPathThroughCnnMs",
+    "selectedCriticalPathExecutionThroughCnnMs",
     "status",
   ]);
 
@@ -1850,6 +2558,7 @@ const run = async () => {
       initSlackQuanta: config.initSlackQuanta,
       maxC2InitExtraQuanta: config.maxC2InitExtraQuanta,
       criterion: config.criterion,
+      requireCriticalPathThroughActor: config.requireCriticalPathThroughActor,
       monotonicEarlyExit: config.monotonicEarlyExit,
       frontierAxis: config.frontierAxis,
       frontierTolerance: config.frontierTolerance,
@@ -1864,6 +2573,7 @@ const run = async () => {
             skippedByMonotonicity: skipped,
             feasiblePhaseRows: feasibleRows.length,
             xyzPoints: xyzRows.length,
+            criticalPathValidPairs: criticalPathValidRows.length,
           }
         : {
             anchors: frontierRows.length,
@@ -1878,11 +2588,13 @@ const run = async () => {
             ).length,
             feasiblePhaseRows: feasibleRows.length,
             xyzPoints: xyzRows.length,
+            criticalPathValidPairs: criticalPathValidRows.length,
           },
     outputs: {
       feasibleCsv: path.join(config.outDir, "cnn-only-feasible.csv"),
       gridCsv: path.join(config.outDir, "cnn-only-grid.csv"),
       xyzCsv: path.join(config.outDir, "cnn-only-xyz-critical-path-cnn.csv"),
+      criticalPathValidCsv: path.join(config.outDir, "cnn-only-critical-path-valid.csv"),
       frontierCsv: path.join(config.outDir, "cnn-only-frontier.csv"),
       summaryJson: path.join(config.outDir, "cnn-only-summary.json"),
     },
@@ -1893,6 +2605,11 @@ const run = async () => {
   writeFileSync(
     path.join(outDir, "cnn-only-xyz-critical-path-cnn.csv"),
     xyzCsv,
+    "utf8"
+  );
+  writeFileSync(
+    path.join(outDir, "cnn-only-critical-path-valid.csv"),
+    criticalPathValidCsv,
     "utf8"
   );
   writeFileSync(path.join(outDir, "cnn-only-frontier.csv"), frontierCsv, "utf8");
@@ -1922,6 +2639,8 @@ const run = async () => {
   console.log(`Output: ${summary.outputs.gridCsv}`);
   // eslint-disable-next-line no-console
   console.log(`Output: ${summary.outputs.xyzCsv}`);
+  // eslint-disable-next-line no-console
+  console.log(`Output: ${summary.outputs.criticalPathValidCsv}`);
   // eslint-disable-next-line no-console
   console.log(`Output: ${summary.outputs.frontierCsv}`);
   // eslint-disable-next-line no-console

@@ -165,6 +165,16 @@ const sections: Section[] = [
                 "Optional human-readable display label.",
               )}
               {fieldRow(
+                "pipelineStage",
+                "string",
+                false,
+                <>
+                  Optional visual category. Allowed values: {code('"sensing"')},{" "}
+                  {code('"perception"')}, {code('"planning"')}, and{" "}
+                  {code('"control-actuators"')}.
+                </>,
+              )}
+              {fieldRow(
                 "timed",
                 "boolean",
                 true,
@@ -224,6 +234,7 @@ const sections: Section[] = [
           {jsonBlock(`{
   "id": "imu",
   "label": "IMU Sensor",
+  "pipelineStage": "sensing",
   "timed": true,
   "freq": 200,
   "phase": 0,
@@ -252,6 +263,7 @@ const sections: Section[] = [
           {jsonBlock(`{
   "id": "estimator",
   "label": "State Estimator",
+  "pipelineStage": "perception",
   "timed": false,
   "executionTime": "2"
 }`)}

@@ -8,6 +8,8 @@ import {
   parseRational,
   toString as rationalToString,
 } from "@/lib/polygraph/rational";
+import type { PipelineStage } from "@/lib/polygraph/types";
+import { PIPELINE_STAGE_OPTIONS } from "../pipelineStages";
 import { usePolygraphStore } from "../store";
 
 const Field = ({ label, value }: { label: string; value: string }) => (
@@ -85,6 +87,35 @@ export default function PropertiesSidebar() {
               setModel({ ...model, actors: nextActors }, "visual");
             }}
           />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+            Pipeline Stage
+          </span>
+          <select
+            className="rounded-lg border border-[color:var(--input-border)] bg-[color:var(--input-bg)] px-3 py-2 text-sm text-[color:var(--foreground)]"
+            value={actor.pipelineStage ?? ""}
+            onChange={(event) => {
+              const stage = event.target.value as PipelineStage | "";
+              const nextActors = model.actors.map((item) => {
+                if (item.id !== actor.id) return item;
+                if (stage === "") {
+                  const nextActor = { ...item };
+                  delete nextActor.pipelineStage;
+                  return nextActor;
+                }
+                return { ...item, pipelineStage: stage };
+              });
+              setModel({ ...model, actors: nextActors }, "visual");
+            }}
+          >
+            <option value="">Uncategorized</option>
+            {PIPELINE_STAGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input

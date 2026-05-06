@@ -32,6 +32,7 @@ import type { PolyGraphModel } from "@/lib/polygraph/types";
 import { parseRational } from "@/lib/polygraph/rational";
 import { usePolygraphStore } from "../store";
 import { defaultPosition, type ActorPosition } from "../graphLayout";
+import { getPipelineStageOption } from "../pipelineStages";
 
 /* ── Custom edge with rates near nodes + init circle ── */
 const RATE_LABEL_STYLE: React.CSSProperties = {
@@ -325,6 +326,7 @@ function VisualEditorInner() {
     return model.actors.map((actor, idx) => {
       const dimmed = hasFocus && !connectedActorIds.has(actor.id);
       const isSelected = actor.id === selectedActorId;
+      const pipelineStage = getPipelineStageOption(actor.pipelineStage);
       return {
         id: actor.id,
         data: {
@@ -364,12 +366,12 @@ function VisualEditorInner() {
           padding: 12,
           border: isSelected
             ? "2px solid var(--accent)"
-            : "1px solid var(--panel-border)",
-          background: actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)",
+            : `1px solid ${pipelineStage?.border ?? "var(--panel-border)"}`,
+          background:
+            pipelineStage?.background ??
+            (actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)"),
           color: "var(--foreground)",
-          boxShadow: isSelected
-            ? "0 0 16px rgba(99, 102, 241, 0.3)"
-            : "0 8px 16px rgba(0, 0, 0, 0.08)",
+          boxShadow: isSelected ? "0 0 16px rgba(99, 102, 241, 0.3)" : "none",
           minWidth: 150,
           opacity: dimmed ? 0.2 : 1,
           transition: "opacity 0.2s ease, border 0.2s ease, box-shadow 0.2s ease",

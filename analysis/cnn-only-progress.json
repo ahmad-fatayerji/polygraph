@@ -1,0 +1,105 @@
+{
+  "stage": "grid-sweep",
+  "completedFreqs": 0,
+  "totalFreqs": 13,
+  "completedPairs": 0,
+  "totalPairs": 273,
+  "skippedByMonotonicity": 0,
+  "lastCompletedFreqHz": "",
+  "elapsedMs": 453,
+  "elapsed": "00:00:00",
+  "percentComplete": 0,
+  "activeRows": [
+    {
+      "taskId": 4,
+      "freqHz": "240",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 12,
+      "freqHz": "320",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 0,
+      "freqHz": "200",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 3,
+      "freqHz": "230",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 1,
+      "freqHz": "210",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 7,
+      "freqHz": "270",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 2,
+      "freqHz": "220",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 5,
+      "freqHz": "250",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 9,
+      "freqHz": "290",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 10,
+      "freqHz": "300",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 8,
+      "freqHz": "280",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 6,
+      "freqHz": "260",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    },
+    {
+      "taskId": 11,
+      "freqHz": "310",
+      "currentWcetMs": "3/5",
+      "completedWcets": 0,
+      "totalWcets": 21
+    }
+  ]
+}

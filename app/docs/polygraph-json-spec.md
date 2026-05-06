@@ -109,6 +109,7 @@ Actors are the processing nodes in the dataflow graph. Each actor fires (execute
   {
     "id": "imu",
     "label": "IMU Sensor",
+    "pipelineStage": "sensing",
     "timed": true,
     "freq": 200,
     "phase": 0
@@ -116,6 +117,7 @@ Actors are the processing nodes in the dataflow graph. Each actor fires (execute
   {
     "id": "estimator",
     "label": "State Estimator",
+    "pipelineStage": "perception",
     "timed": false
   }
 ]
@@ -127,6 +129,7 @@ Actors are the processing nodes in the dataflow graph. Each actor fires (execute
 | -------- | ------- | -------- | -------------------------------------------------------------------------------------------------------- |
 | `id`     | string  | **Yes**  | Unique identifier. Referenced by channels. Must be non-empty and unique across all actors.               |
 | `label`  | string  | No       | Human-readable display name.                                                                             |
+| `pipelineStage` | string | No | Optional visual category. Allowed values: `"sensing"`, `"perception"`, `"planning"`, `"control-actuators"`. |
 | `timed`  | boolean | **Yes**  | `true` for actors that fire at a fixed rate; `false` for data-driven actors.                             |
 | `freq`   | number  | Cond.    | Firing frequency in **Hz** (cycles/sec). Required for timed actors if `period` is not set. Must be > 0.  |
 | `period` | number  | Cond.    | Firing period in **milliseconds**. Required for timed actors if `freq` is not set. Must be > 0.          |
@@ -687,6 +690,7 @@ type PolyGraphModel = {
   actors: Array<{
     id: string;
     label?: string;
+    pipelineStage?: "sensing" | "perception" | "planning" | "control-actuators";
     timed: boolean;
     freq?: number; // Hz, required if timed and no period
     period?: number; // ms, required if timed and no freq

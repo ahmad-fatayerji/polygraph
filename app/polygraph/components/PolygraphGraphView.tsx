@@ -22,6 +22,7 @@ import { toJpeg, toPng, toSvg } from "html-to-image";
 import { usePolygraphStore } from "../store";
 import type { PolyGraphModel } from "@/lib/polygraph/types";
 import { computeAutoLayout, defaultPosition } from "../graphLayout";
+import { getPipelineStageOption } from "../pipelineStages";
 
 export interface PolygraphGraphViewHandle {
   exportAs: (format: "svg" | "png" | "jpg") => Promise<void>;
@@ -63,6 +64,7 @@ const PolygraphGraphView = forwardRef<
     return model.actors.map((actor, idx) => {
       const dimmed = hasFocus && !connectedActorIds.has(actor.id);
       const isSelected = actor.id === selectedActorId;
+      const pipelineStage = getPipelineStageOption(actor.pipelineStage);
       return {
         id: actor.id,
         data: {
@@ -96,12 +98,12 @@ const PolygraphGraphView = forwardRef<
           padding: "14px 16px",
           border: isSelected
             ? "2px solid var(--accent)"
-            : "1px solid var(--panel-border)",
-          background: actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)",
+            : `1px solid ${pipelineStage?.border ?? "var(--panel-border)"}`,
+          background:
+            pipelineStage?.background ??
+            (actor.timed ? "var(--node-timed-bg)" : "var(--node-bg)"),
           color: "var(--foreground)",
-          boxShadow: isSelected
-            ? "0 0 16px rgba(99, 102, 241, 0.3)"
-            : "0 16px 30px rgba(0, 0, 0, 0.1)",
+          boxShadow: isSelected ? "0 0 16px rgba(99, 102, 241, 0.3)" : "none",
           minWidth: 160,
           opacity: dimmed ? 0.2 : 1,
           transition: "opacity 0.2s ease, border 0.2s ease, box-shadow 0.2s ease",

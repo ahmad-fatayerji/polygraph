@@ -14,7 +14,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "0"
+      "phase": "0",
+      "pipelineStage": "sensing"
     },
     {
       "id": "magneto",
@@ -26,7 +27,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "0"
+      "phase": "0",
+      "pipelineStage": "sensing"
     },
     {
       "id": "baro",
@@ -38,7 +40,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "0"
+      "phase": "0",
+      "pipelineStage": "sensing"
     },
     {
       "id": "adc",
@@ -50,7 +53,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "0"
+      "phase": "0",
+      "pipelineStage": "sensing"
     },
     {
       "id": "vehicle_angular_velocity",
@@ -62,7 +66,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "3/5"
+      "phase": "3/5",
+      "pipelineStage": "perception"
     },
     {
       "id": "sensors",
@@ -74,7 +79,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "1/5"
+      "phase": "1/5",
+      "pipelineStage": "perception"
     },
     {
       "id": "vehicle_air_data",
@@ -86,7 +92,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "1/5"
+      "phase": "1/5",
+      "pipelineStage": "perception"
     },
     {
       "id": "ekf2",
@@ -98,7 +105,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "16/5"
+      "phase": "16/5",
+      "pipelineStage": "perception"
     },
     {
       "id": "battery_module",
@@ -110,7 +118,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "4"
+      "phase": "4",
+      "pipelineStage": "perception"
     },
     {
       "id": "commander",
@@ -122,7 +131,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "18/5"
+      "phase": "18/5",
+      "pipelineStage": "planning"
     },
     {
       "id": "navigator",
@@ -134,7 +144,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "6"
+      "phase": "6",
+      "pipelineStage": "planning"
     },
     {
       "id": "flight_mode_manager",
@@ -146,18 +157,20 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "15"
+      "phase": "15",
+      "pipelineStage": "planning"
     },
     {
       "id": "mc_pos_control",
       "label": "MC Position Control",
       "timed": true,
-      "freq": 100,
       "executionTime": "43/1000",
       "bcet": "1/125",
       "jitter": "0",
       "priority": 1,
       "processor": 0,
+      "pipelineStage": "control-actuators",
+      "freq": 100,
       "phase": "9"
     },
     {
@@ -170,7 +183,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "18/5"
+      "phase": "18/5",
+      "pipelineStage": "control-actuators"
     },
     {
       "id": "mc_rate_control",
@@ -182,7 +196,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "8/5"
+      "phase": "8/5",
+      "pipelineStage": "control-actuators"
     },
     {
       "id": "control_allocator",
@@ -194,7 +209,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "9/5"
+      "phase": "9/5",
+      "pipelineStage": "control-actuators"
     },
     {
       "id": "pwm_pca9685",
@@ -206,7 +222,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "18"
+      "phase": "18",
+      "pipelineStage": "control-actuators"
     },
     {
       "id": "esc_motors",
@@ -218,7 +235,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "18"
+      "phase": "18",
+      "pipelineStage": "control-actuators"
     },
     {
       "id": "servos",
@@ -230,7 +248,8 @@
       "jitter": "0",
       "priority": 1,
       "processor": 0,
-      "phase": "18"
+      "phase": "18",
+      "pipelineStage": "control-actuators"
     },
     {
       "id": "a1",
@@ -242,7 +261,8 @@
       "bcet": "1/200",
       "jitter": "0",
       "priority": 1,
-      "processor": 0
+      "processor": 0,
+      "pipelineStage": "sensing"
     },
     {
       "id": "a2",
@@ -254,7 +274,8 @@
       "bcet": "0",
       "jitter": "0",
       "priority": 1,
-      "processor": 0
+      "processor": 0,
+      "pipelineStage": "perception"
     },
     {
       "id": "a3",
@@ -266,7 +287,8 @@
       "bcet": "0",
       "jitter": "0",
       "priority": 1,
-      "processor": 0
+      "processor": 0,
+      "pipelineStage": "planning"
     }
   ],
   "channels": [
@@ -562,92 +584,92 @@
   "layout": {
     "actors": {
       "imu": {
-        "x": -399.58204325089764,
-        "y": 547.623054998325
+        "x": -619.2676090378678,
+        "y": 453.2679068142626
       },
       "magneto": {
-        "x": -447.50661380628105,
-        "y": 433.4481141912851
+        "x": -612.6319425888514,
+        "y": 344.0803934192461
       },
       "baro": {
-        "x": -438.72241831100297,
-        "y": 310.6106278117321
+        "x": -623.9544795932686,
+        "y": 193.85287254137177
       },
       "adc": {
-        "x": -417.3713993942368,
-        "y": 47.63729466973933
+        "x": -608.8366797596843,
+        "y": 58.018122138167655
       },
       "vehicle_angular_velocity": {
-        "x": -147.07818948153084,
-        "y": 819.7059413163959
+        "x": -305.8293239841114,
+        "y": 517.4074750770378
       },
       "sensors": {
-        "x": -149.96893142630373,
-        "y": 557.0240752590713
+        "x": -300.7134135587826,
+        "y": 372.45566445432917
       },
       "vehicle_air_data": {
-        "x": -151.32847865935986,
-        "y": 383.2305394232656
+        "x": -314.376133886974,
+        "y": 204.27027271762722
       },
       "ekf2": {
-        "x": 155.00814611473876,
-        "y": 378.12047345666554
+        "x": -53.210289030167814,
+        "y": 267.7520205323997
       },
       "battery_module": {
-        "x": 317.6307489653666,
-        "y": 195.9855492141898
+        "x": -313.5692405253633,
+        "y": 50.70510440576027
       },
       "commander": {
-        "x": 582.6845763197044,
-        "y": 466.52295071218737
+        "x": 196.3291988131714,
+        "y": 45.88078411711592
       },
       "navigator": {
-        "x": 730.8264590109578,
-        "y": 684.4892057246385
+        "x": 216.74566062602344,
+        "y": 367.28033717952223
       },
       "flight_mode_manager": {
-        "x": 840.9291824538305,
-        "y": 146.71228991550828
+        "x": 474.46457182366726,
+        "y": 260.47234388235677
       },
       "mc_pos_control": {
-        "x": 1133.5232623316665,
-        "y": 227.06810950738935
+        "x": 681.9590867552598,
+        "y": 29.673203239448412
       },
       "mc_att_control": {
-        "x": 1051.0581705007382,
-        "y": 592.4089007934009
+        "x": 709.365352382156,
+        "y": 351.3379982412656
       },
       "mc_rate_control": {
-        "x": 1170.3511810472066,
-        "y": 828.1527963860696
+        "x": 726.789901748434,
+        "y": 634.4885777361318
       },
       "control_allocator": {
-        "x": 1453.0280079577462,
-        "y": 762.9593291487827
+        "x": 915.2779273259175,
+        "y": 394.5599142641902
       },
       "pwm_pca9685": {
-        "x": 1768.992794689488,
-        "y": 768.1176036532879
+        "x": 1108.5125362744468,
+        "y": 232.21814120261047
       },
       "esc_motors": {
-        "x": 2105.543923181328,
-        "y": 756.6713776774022
+        "x": 1307.2228002871511,
+        "y": 421.3956323786417
       },
       "servos": {
-        "x": 2040.634647865746,
-        "y": 619.5414621176451
+        "x": 1320.249487200714,
+        "y": 84.6746985602523
       },
       "a1": {
-        "x": -426.233134340536,
-        "y": 1038.945543756192
+        "x": -614.3734630979682,
+        "y": 593.8080009264861
       },
       "a2": {
-        "x": -21.544448865351427,
-        "y": 1039.0404805919056
+        "x": -298.0636803438408,
+        "y": 690.1926918403296
       },
       "a3": {
-        "x": 357.94041617024834,
-        "y": 1033.301539125666
+        "x": 75.62978599393068,
+        "y": 696.697346236371
       }
     }
   }

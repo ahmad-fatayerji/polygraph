@@ -1,0 +1,98 @@
+{
+  "stage": "grid-sweep",
+  "completedFreqs": 2,
+  "totalFreqs": 46,
+  "completedPairs": 22,
+  "totalPairs": 506,
+  "skippedByMonotonicity": 9,
+  "lastCompletedFreqHz": "",
+  "elapsedMs": 496330,
+  "elapsed": "00:08:16",
+  "percentComplete": 4.3478260869565215,
+  "activeRows": [
+    {
+      "taskId": 1,
+      "freqHz": "60",
+      "currentWcetMs": "3",
+      "completedWcets": 6,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 5,
+      "freqHz": "100",
+      "currentWcetMs": "3",
+      "completedWcets": 6,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 2,
+      "freqHz": "70",
+      "currentWcetMs": "0",
+      "completedWcets": 0,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 7,
+      "freqHz": "120",
+      "currentWcetMs": "5/2",
+      "completedWcets": 5,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 4,
+      "freqHz": "90",
+      "currentWcetMs": "1",
+      "completedWcets": 2,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 6,
+      "freqHz": "110",
+      "currentWcetMs": "0",
+      "completedWcets": 0,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 3,
+      "freqHz": "80",
+      "currentWcetMs": "5/2",
+      "completedWcets": 5,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 8,
+      "freqHz": "130",
+      "currentWcetMs": "0",
+      "completedWcets": 0,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 9,
+      "freqHz": "140",
+      "currentWcetMs": "1/2",
+      "completedWcets": 1,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 0,
+      "freqHz": "50",
+      "currentWcetMs": "7/2",
+      "completedWcets": 7,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 12,
+      "freqHz": "170",
+      "currentWcetMs": "0",
+      "completedWcets": 0,
+      "totalWcets": 11
+    },
+    {
+      "taskId": 13,
+      "freqHz": "180",
+      "currentWcetMs": "0",
+      "completedWcets": 0,
+      "totalWcets": 11
+    }
+  ]
+}

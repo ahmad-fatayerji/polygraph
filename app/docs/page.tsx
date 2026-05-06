@@ -391,6 +391,12 @@ export default function DocsPage() {
                   ],
                   ["label", "string", "No", "Human-readable display name."],
                   [
+                    "pipelineStage",
+                    "string",
+                    "No",
+                    'Optional visual category: `"sensing"`, `"perception"`, `"planning"`, or `"control-actuators"`.',
+                  ],
+                  [
                     "timed",
                     "boolean",
                     "**Yes**",
@@ -441,6 +447,7 @@ export default function DocsPage() {
                     code={`{
   "id": "imu",
   "label": "IMU Sensor",
+  "pipelineStage": "sensing",
   "timed": true,
   "freq": 200,
   "phase": 0
@@ -486,6 +493,7 @@ export default function DocsPage() {
                 code={`{
   "id": "estimator",
   "label": "State Estimator",
+  "pipelineStage": "perception",
   "timed": false
 }`}
               />
@@ -1236,6 +1244,7 @@ export default function DocsPage() {
   actors: Array<{
     id: string;
     label?: string;
+    pipelineStage?: "sensing" | "perception" | "planning" | "control-actuators";
     timed: boolean;
     freq?: number;    // Hz, required if timed and no period
     period?: number;  // ms, required if timed and no freq

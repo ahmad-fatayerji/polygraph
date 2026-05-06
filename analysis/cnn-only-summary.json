@@ -7,34 +7,37 @@
   "sweepMode": "grid",
   "search": {
     "freqMin": 50,
-    "freqMax": 500,
-    "freqStep": 50,
+    "freqMax": 1000,
+    "freqStep": 25,
     "wcetMin": 0,
     "wcetMax": 5,
-    "wcetStep": 0.5,
+    "wcetStep": 0.25,
     "phaseStepMs": "1/4",
-    "maxPhaseCandidates": 64,
+    "maxPhaseCandidates": 20,
     "phaseMode": "first",
     "initSlackQuanta": 0,
-    "maxC2InitExtraQuanta": 8,
+    "maxC2InitExtraQuanta": 5,
     "criterion": "no-error",
+    "requireCriticalPathThroughActor": true,
     "monotonicEarlyExit": true,
     "frontierAxis": "wcet-vs-freq",
     "frontierTolerance": 0.01,
     "frontierMaxIters": 40
   },
   "totals": {
-    "testedPairs": 110,
-    "feasiblePairs": 74,
-    "infeasiblePairs": 36,
-    "skippedByMonotonicity": 29,
-    "feasiblePhaseRows": 74,
-    "xyzPoints": 74
+    "testedPairs": 819,
+    "feasiblePairs": 339,
+    "infeasiblePairs": 480,
+    "skippedByMonotonicity": 446,
+    "feasiblePhaseRows": 339,
+    "xyzPoints": 339,
+    "criticalPathValidPairs": 339
   },
   "outputs": {
     "feasibleCsv": "analysis\\cnn-only-feasible.csv",
     "gridCsv": "analysis\\cnn-only-grid.csv",
     "xyzCsv": "analysis\\cnn-only-xyz-critical-path-cnn.csv",
+    "criticalPathValidCsv": "analysis\\cnn-only-critical-path-valid.csv",
     "frontierCsv": "analysis\\cnn-only-frontier.csv",
     "summaryJson": "analysis\\cnn-only-summary.json"
   }
